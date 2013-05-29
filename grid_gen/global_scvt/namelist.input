@@ -6,4 +6,5 @@
  l2_conv = .true.
  inf_conv = .false.
  min_dx = 120000.0
+ scvt_only = .false.
 /

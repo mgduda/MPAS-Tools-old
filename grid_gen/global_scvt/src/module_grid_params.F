@@ -3,6 +3,7 @@ module grid_params
    integer :: np
    logical :: locs_as_xyz
    logical :: l2_conv, inf_conv
+   logical :: scvt_only
    integer :: n_scvt_iterations
    real :: eps
    real :: min_dx
@@ -16,7 +17,7 @@ module grid_params
       integer :: funit
       real :: pi
 
-      namelist /domains/ np, locs_as_xyz, n_scvt_iterations, eps, l2_conv, inf_conv, min_dx
+      namelist /domains/ np, locs_as_xyz, n_scvt_iterations, eps, l2_conv, inf_conv, min_dx, scvt_only
 
       pi = 4.0*atan(1.0)
 
@@ -29,6 +30,7 @@ module grid_params
       l2_conv = .true.
       inf_conv = .false.
       min_dx = 120000.0
+      scvt_only = .false.
 
       open(funit,file='namelist.input',status='old',form='formatted')
       read(funit,domains)

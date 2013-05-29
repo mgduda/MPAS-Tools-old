@@ -138,7 +138,9 @@ module write_netcdf
       nferr = nf_def_dim(wr_ncid, 'TWO', 2, wrDimIDTWO)
       nferr = nf_def_dim(wr_ncid, 'vertexDegree', 3, wrDimIDvertexDegree)
       nferr = nf_def_dim(wr_ncid, 'nVertLevels', nVertLevels, wrDimIDnVertLevels)
-      nferr = nf_def_dim(wr_ncid, 'nTracers', nTracers, wrDimIDnTracers)
+      if (.not. scvt_only) then
+         nferr = nf_def_dim(wr_ncid, 'nTracers', nTracers, wrDimIDnTracers)
+      end if
       nferr = nf_def_dim(wr_ncid, 'Time', NF_UNLIMITED, wrDimIDTime)
  
       !
@@ -230,45 +232,48 @@ module write_netcdf
       dimlist( 1) = wrDimIDvertexDegree
       dimlist( 2) = wrDimIDnVertices
       nferr = nf_def_var(wr_ncid, 'kiteAreasOnVertex', NF_DOUBLE,  2, dimlist, wrVarIDkiteAreasOnVertex)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'fEdge', NF_DOUBLE,  1, dimlist, wrVarIDfEdge)
-      dimlist( 1) = wrDimIDnVertices
-      nferr = nf_def_var(wr_ncid, 'fVertex', NF_DOUBLE,  1, dimlist, wrVarIDfVertex)
-      dimlist( 1) = wrDimIDnCells
-      nferr = nf_def_var(wr_ncid, 'h_s', NF_DOUBLE,  1, dimlist, wrVarIDh_s)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnEdges
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'u', NF_DOUBLE,  3, dimlist, wrVarIDu)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnEdges
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'v', NF_DOUBLE,  3, dimlist, wrVarIDv)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnCells
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'h', NF_DOUBLE,  3, dimlist, wrVarIDh)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnEdges
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'vh', NF_DOUBLE,  3, dimlist, wrVarIDvh)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnVertices
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'circulation', NF_DOUBLE,  3, dimlist, wrVarIDcirculation)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnVertices
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'vorticity', NF_DOUBLE,  3, dimlist, wrVarIDvorticity)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnCells
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'ke', NF_DOUBLE,  3, dimlist, wrVarIDke)
-      dimlist( 1) = wrDimIDnTracers
-      dimlist( 2) = wrDimIDnVertLevels
-      dimlist( 3) = wrDimIDnCells
-      dimlist( 4) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'tracers', NF_DOUBLE,  4, dimlist, wrVarIDtracers)
+
+      if (.not. scvt_only) then
+         dimlist( 1) = wrDimIDnEdges
+         nferr = nf_def_var(wr_ncid, 'fEdge', NF_DOUBLE,  1, dimlist, wrVarIDfEdge)
+         dimlist( 1) = wrDimIDnVertices
+         nferr = nf_def_var(wr_ncid, 'fVertex', NF_DOUBLE,  1, dimlist, wrVarIDfVertex)
+         dimlist( 1) = wrDimIDnCells
+         nferr = nf_def_var(wr_ncid, 'h_s', NF_DOUBLE,  1, dimlist, wrVarIDh_s)
+         dimlist( 1) = wrDimIDnVertLevels
+         dimlist( 2) = wrDimIDnEdges
+         dimlist( 3) = wrDimIDTime
+         nferr = nf_def_var(wr_ncid, 'u', NF_DOUBLE,  3, dimlist, wrVarIDu)
+         dimlist( 1) = wrDimIDnVertLevels
+         dimlist( 2) = wrDimIDnEdges
+         dimlist( 3) = wrDimIDTime
+         nferr = nf_def_var(wr_ncid, 'v', NF_DOUBLE,  3, dimlist, wrVarIDv)
+         dimlist( 1) = wrDimIDnVertLevels
+         dimlist( 2) = wrDimIDnCells
+         dimlist( 3) = wrDimIDTime
+         nferr = nf_def_var(wr_ncid, 'h', NF_DOUBLE,  3, dimlist, wrVarIDh)
+         dimlist( 1) = wrDimIDnVertLevels
+         dimlist( 2) = wrDimIDnEdges
+         dimlist( 3) = wrDimIDTime
+         nferr = nf_def_var(wr_ncid, 'vh', NF_DOUBLE,  3, dimlist, wrVarIDvh)
+         dimlist( 1) = wrDimIDnVertLevels
+         dimlist( 2) = wrDimIDnVertices
+         dimlist( 3) = wrDimIDTime
+         nferr = nf_def_var(wr_ncid, 'circulation', NF_DOUBLE,  3, dimlist, wrVarIDcirculation)
+         dimlist( 1) = wrDimIDnVertLevels
+         dimlist( 2) = wrDimIDnVertices
+         dimlist( 3) = wrDimIDTime
+         nferr = nf_def_var(wr_ncid, 'vorticity', NF_DOUBLE,  3, dimlist, wrVarIDvorticity)
+         dimlist( 1) = wrDimIDnVertLevels
+         dimlist( 2) = wrDimIDnCells
+         dimlist( 3) = wrDimIDTime
+         nferr = nf_def_var(wr_ncid, 'ke', NF_DOUBLE,  3, dimlist, wrVarIDke)
+         dimlist( 1) = wrDimIDnTracers
+         dimlist( 2) = wrDimIDnVertLevels
+         dimlist( 3) = wrDimIDnCells
+         dimlist( 4) = wrDimIDTime
+         nferr = nf_def_var(wr_ncid, 'tracers', NF_DOUBLE,  4, dimlist, wrVarIDtracers)
+      endif
  
       nferr = nf_enddef(wr_ncid)
  
@@ -565,67 +570,68 @@ module write_netcdf
       count2( 2) = wrLocalnVertices
       nferr = nf_put_vara_double(wr_ncid, wrVarIDkiteAreasOnVertex, start2, count2, kiteAreasOnVertex)
  
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDfEdge, start1, count1, fEdge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnVertices
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDfVertex, start1, count1, fVertex)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnCells
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDh_s, start1, count1, h_s)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnEdges
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDu, start3, count3, u)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnEdges
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDv, start3, count3, v)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnCells
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDh, start3, count3, h)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnEdges
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDvh, start3, count3, vh)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnVertices
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDcirculation, start3, count3, circulation)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnVertices
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDvorticity, start3, count3, vorticity)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnCells
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDke, start3, count3, ke)
- 
-      start4(4) = time
-      count4( 1) = wrLocalnTracers
-      count4( 2) = wrLocalnVertLevels
-      count4( 3) = wrLocalnCells
-      count4( 4) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDtracers, start4, count4, tracers)
- 
+      if (.not. scvt_only) then
+         start1(1) = 1
+         count1( 1) = wrLocalnEdges
+         nferr = nf_put_vara_double(wr_ncid, wrVarIDfEdge, start1, count1, fEdge)
+    
+         start1(1) = 1
+         count1( 1) = wrLocalnVertices
+         nferr = nf_put_vara_double(wr_ncid, wrVarIDfVertex, start1, count1, fVertex)
+    
+         start1(1) = 1
+         count1( 1) = wrLocalnCells
+         nferr = nf_put_vara_double(wr_ncid, wrVarIDh_s, start1, count1, h_s)
+    
+         start3(3) = time
+         count3( 1) = wrLocalnVertLevels
+         count3( 2) = wrLocalnEdges
+         count3( 3) = 1
+         nferr = nf_put_vara_double(wr_ncid, wrVarIDu, start3, count3, u)
+    
+         start3(3) = time
+         count3( 1) = wrLocalnVertLevels
+         count3( 2) = wrLocalnEdges
+         count3( 3) = 1
+         nferr = nf_put_vara_double(wr_ncid, wrVarIDv, start3, count3, v)
+    
+         start3(3) = time
+         count3( 1) = wrLocalnVertLevels
+         count3( 2) = wrLocalnCells
+         count3( 3) = 1
+         nferr = nf_put_vara_double(wr_ncid, wrVarIDh, start3, count3, h)
+    
+         start3(3) = time
+         count3( 1) = wrLocalnVertLevels
+         count3( 2) = wrLocalnEdges
+         count3( 3) = 1
+         nferr = nf_put_vara_double(wr_ncid, wrVarIDvh, start3, count3, vh)
+    
+         start3(3) = time
+         count3( 1) = wrLocalnVertLevels
+         count3( 2) = wrLocalnVertices
+         count3( 3) = 1
+         nferr = nf_put_vara_double(wr_ncid, wrVarIDcirculation, start3, count3, circulation)
+    
+         start3(3) = time
+         count3( 1) = wrLocalnVertLevels
+         count3( 2) = wrLocalnVertices
+         count3( 3) = 1
+         nferr = nf_put_vara_double(wr_ncid, wrVarIDvorticity, start3, count3, vorticity)
+    
+         start3(3) = time
+         count3( 1) = wrLocalnVertLevels
+         count3( 2) = wrLocalnCells
+         count3( 3) = 1
+         nferr = nf_put_vara_double(wr_ncid, wrVarIDke, start3, count3, ke)
+    
+         start4(4) = time
+         count4( 1) = wrLocalnTracers
+         count4( 2) = wrLocalnVertLevels
+         count4( 3) = wrLocalnCells
+         count4( 4) = 1
+         nferr = nf_put_vara_double(wr_ncid, wrVarIDtracers, start4, count4, tracers)
+      end if 
  
    end subroutine write_netcdf_fields
  
