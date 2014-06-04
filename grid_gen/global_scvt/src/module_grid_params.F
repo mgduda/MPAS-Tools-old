@@ -3,7 +3,7 @@ module grid_params
    integer :: np
    logical :: locs_as_xyz
    logical :: l2_conv, inf_conv
-   integer :: n_scvt_iterations
+   integer :: n_scvt_iterations, report_interval, restart_interval
    real :: eps
    real :: min_dx
 
@@ -16,7 +16,7 @@ module grid_params
       integer :: funit
       real :: pi
 
-      namelist /domains/ np, locs_as_xyz, n_scvt_iterations, eps, l2_conv, inf_conv, min_dx
+      namelist /domains/ np, locs_as_xyz, n_scvt_iterations, eps, l2_conv, inf_conv, min_dx, report_interval, restart_interval
 
       pi = 4.0*atan(1.0)
 
@@ -26,6 +26,8 @@ module grid_params
       locs_as_xyz = .true.
       n_scvt_iterations = 0
       eps = 0.0000000001
+      report_interval = 100
+      restart_interval = 1000
       l2_conv = .true.
       inf_conv = .false.
       min_dx = 120000.0

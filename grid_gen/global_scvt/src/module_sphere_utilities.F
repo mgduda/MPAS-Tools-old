@@ -198,8 +198,6 @@ subroutine great_circle_points(p1, p2, pl, n)
    pii = 2.*asin(1.0)
    rtod = 180./pii
 
-!      write(6,*) ' in gcp ',rtod*lat1,rtod*lon1,rtod*lat2,rtod*lon2
-
    if (n < 2) then
      write(6,*) ' n less than 2 in great_circle_points '
      stop
@@ -221,8 +219,6 @@ subroutine great_circle_points(p1, p2, pl, n)
    pl(1) = p1
    pl(n) = p2
 
-!   write(6,*) ' x1,y1,z1 ',x1,y1,z1 
-!   write(6,*) ' x2,y2,z2 ',x2,y2,z2 
 
 ! compute the interior points.  see notes for derivation
 
@@ -231,20 +227,16 @@ subroutine great_circle_points(p1, p2, pl, n)
 
       if (dt <= 0.5*dtheta) then
          dx = 1.-tan(0.5*dtheta-dt)/tan(0.5*dtheta)
-!         write(6,*) ' case 1 ',dx
          x = x1+0.5*dx*(x2-x1)
          y = y1+0.5*dx*(y2-y1)
          z = z1+0.5*dx*(z2-z1)
       else
          dt = dtheta-dt
          dx = 1.-tan(0.5*dtheta-dt)/tan(0.5*dtheta)
-!         write(6,*) ' case 2 ',dx
          x = x2+0.5*dx*(x1-x2)
          y = y2+0.5*dx*(y1-y2)
          z = z2+0.5*dx*(z1-z2)
       end if
-
-!      write(6,*) ' x,y,z ',x,y,z
 
       call convert_xl(x,y,z,pl(i)) 
    enddo
@@ -736,9 +728,6 @@ subroutine divide_triangle(p1, p2, p3, n, p)
 
    do i = 3,glevel
       call great_circle_points(p1p2(i), p1p3(i), line(:,i), i)
-!do j=1,i
-!write(0,*) j,i,' P ',line(j,i)%lat*180./3.14159, line(j,i)%lon*180./3.14159
-!end do
    end do
    
    k = 1
@@ -747,22 +736,15 @@ subroutine divide_triangle(p1, p2, p3, n, p)
          p(1,k) = line(j,i)
          p(2,k) = line(j,i+1)
          p(3,k) = line(j+1,i+1)
-!write(0,*) j,i, ' - ',p(1,k)%lat*180./3.14159,p(1,k)%lon*180./3.14159
-!write(0,*) j,i+1, ' - ',p(2,k)%lat*180./3.14159,p(2,k)%lon*180./3.14159
-!write(0,*) j+1,i+1, ' - ',p(3,k)%lat*180./3.14159,p(3,k)%lon*180./3.14159
          k = k + 1
       end do
    end do
 
-!write(0,*) '-----------'
    do i = glevel,3,-1
       do j = 2,i-1
          p(1,k) = line(j,i)
          p(2,k) = line(j,i-1)
          p(3,k) = line(j-1,i-1)
-!write(0,*) j,i, ' - ',p(1,k)%lat*180./3.14159,p(1,k)%lon*180./3.14159
-!write(0,*) j,i-1, ' - ',p(2,k)%lat*180./3.14159,p(2,k)%lon*180./3.14159
-!write(0,*) j-1,i-1, ' - ',p(3,k)%lat*180./3.14159,p(3,k)%lon*180./3.14159
          k = k + 1
       end do
    end do

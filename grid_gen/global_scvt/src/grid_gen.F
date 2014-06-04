@@ -8,6 +8,7 @@ program grid_gen
    use stripack
    use scvt
    use grid_meta
+   use mgd, only : compute_vc_mgd, convert_xl_mgd, convert_lx_mgd
 
    implicit none
 
@@ -91,12 +92,12 @@ program grid_gen
    if (locs_as_xyz) then
       read(22,*)
       do i=1,n
-         read(22,'(10x,f22.10,f23.10,f23.10)') x(i), y(i), z(i)
+         read(22,*) x(i), y(i), z(i)
       end do
-      call trans_inv(x, y, z, rlat, rlon, n)
    else
       do i=1,n
          read(22,'(f13.10,1x,f13.10)') rlat(i), rlon(i)
+         call convert_lx_mgd(rlat(i), rlon(i), x(i), y(i), z(i))
       end do
    end if
    close(22)
@@ -107,29 +108,31 @@ program grid_gen
    !
    write(0,*) ' '
    write(0,*) 'Computing Voronoi corners'
-   call compute_vc(rlat, rlon, n, nrow, ntmax, list, lptr, lend, listc, vclat, vclon, nvc)
+   call compute_vc_mgd(x, y, z, n, nrow, ntmax, list, lptr, lend, listc, xc, yc, zc, nvc)
 
 
    !
    ! Form SCVT
    !
-   call TRANS (n, rlat, rlon, x, y, z)
-   call TRANS (nvc, vclat, vclon, xc, yc, zc)
    write(frame_name,'(a)') 'scvt_initial.ps'
    open(32,file=trim(frame_name),form='formatted',status='unknown')
-   call vrplot(32, 8.0, 0.0, 0.0, 90.0 ,N, X,Y,Z, 2*n-4,LISTC,LPTR,LEND,XC,YC,ZC,'(spherical centroidal voronoi tessellation)',.false.,IER)
+   call vrplot(32, 8.0, 90.0, 0.0, 90.0 ,N, X,Y,Z, 2*n-4,LISTC,LPTR,LEND,XC,YC,ZC,'(spherical centroidal voronoi tessellation)',.false.,IER)
    close(32)
 
-   call scvt_solve(n, lend, rlat, rlon, nvc, list, lptr, if)
+   call scvt_solve(n, lend, x, y, z, nvc, list, lptr, if)
 
-   call compute_vc(rlat, rlon, n, nrow, ntmax, list, lptr, lend, listc, vclat, vclon, nvc)
-   call TRANS (n, rlat, rlon, x, y, z)
-   call TRANS (nvc, vclat, vclon, xc, yc, zc)
+   call compute_vc_mgd(x, y, z, n, nrow, ntmax, list, lptr, lend, listc, xc, yc, zc, nvc)
    write(frame_name,'(a)') 'scvt_final.ps'
    open(32,file=trim(frame_name),form='formatted',status='unknown')
-   call vrplot(32, 8.0, 0.0, 0.0, 90.0 ,N, X,Y,Z, 2*n-4,LISTC,LPTR,LEND,XC,YC,ZC,'(spherical centroidal voronoi tessellation)',.false.,IER)
+   call vrplot(32, 8.0, 90.0, 0.0, 90.0 ,N, X,Y,Z, 2*n-4,LISTC,LPTR,LEND,XC,YC,ZC,'(spherical centroidal voronoi tessellation)',.false.,IER)
    close(32)
 
+   do i=1,n
+      call convert_xl_mgd(x(i), y(i), z(i), rlat(i), rlon(i))
+   end do
+   do i=1,nvc
+      call convert_xl_mgd(xc(i), yc(i), zc(i), vclat(i), vclon(i))
+   end do
 
    write(0,*) ' '
    write(0,*) 'Deriving grid metadata and writing output'

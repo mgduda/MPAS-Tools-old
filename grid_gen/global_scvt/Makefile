@@ -6,11 +6,11 @@
 #LDFLAGS = -m64 -O3 -fast -ipo -openmp
 
 FC = gfortran
-FFLAGS = -ffree-form -O3 -fopenmp -ffree-line-length-none
-F77FLAGS = -ffixed-form -O3 -fopenmp -fsecond-underscore
+FFLAGS = -m64 -ffree-form -O3 -fopenmp -ffree-line-length-none
+F77FLAGS = -m64 -ffixed-form -O3 -fopenmp -fsecond-underscore
 CPPFLAGS = -DRKIND=8
 PROMOTION = -fdefault-real-8
-LDFLAGS = -O3 -fopenmp
+LDFLAGS = -m64 -O3 -fopenmp
 
 #FC = pgf90
 #FFLAGS = -Mfree -O3 -mp -byteswapio

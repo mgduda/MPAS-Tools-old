@@ -5,6 +5,7 @@ module scvt
    use voronoi_utils
    use grid_constants
    use grid_params
+   use mgd
 
 
    contains
@@ -14,14 +15,14 @@ module scvt
    !  SUBROUTINE SCVT_SOLVE
    !
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   subroutine scvt_solve(n, lend, rlat, rlon, nvc, list, lptr, fn)
+   subroutine scvt_solve(n, lend, x, y, z, nvc, list, lptr, fn)
    
       implicit none
 
       integer, intent(in) :: n, nvc, fn
       integer, dimension(n), intent(inout) :: lend
       integer, dimension(nvc), intent(inout) :: list, lptr 
-      real, dimension(n), intent(inout) :: rlat, rlon
+      real, dimension(n), intent(inout) :: x, y, z
 
       integer :: maxitr
 
@@ -29,14 +30,14 @@ module scvt
       integer :: ntmax, nrow, nptri
       integer, allocatable, dimension(:) :: listc
       real :: area, density, tot_mass
-      real :: x, y, z, new_ctr_x, new_ctr_y, new_ctr_z 
-      real, allocatable, dimension(:) :: vclat, vclon
-      real, allocatable, dimension(:) :: rlat_2, rlon_2
-      type (geo_point) :: p1, p2, p3, pc
-      type (geo_point) :: p_n1, p_n2
-      type (geo_point), dimension(3,64) :: ptri
+      real :: xm, ym, zm, new_ctr_x, new_ctr_y, new_ctr_z 
+      real, allocatable, dimension(:) :: x_2, y_2, z_2, xc, yc, zc
+      real, dimension(3) :: p1_cart, p2_cart, p3_cart, pc_cart
+      real, dimension(3,3,256) :: ptri_cart
+      real :: m
       real :: avg_movement, maxmovement, movement
       logical converged
+integer :: itimer, sec, nsec
 
       maxitr = n_scvt_iterations
 
@@ -45,143 +46,182 @@ module scvt
 
       ntmax = 6*n
       nrow = 6
-      nptri = 64
+      nptri = 256
       allocate(listc(nvc))
-      allocate(vclat(nvc))
-      allocate(vclon(nvc))
-      allocate(rlat_2(n))
-      allocate(rlon_2(n))
+      allocate(xc(nvc))
+      allocate(yc(nvc))
+      allocate(zc(nvc))
+      allocate(x_2(n))
+      allocate(y_2(n))
+      allocate(z_2(n))
 
       iter = 1
       converged = .false.
 
+      call mgd_init()
+
       do while (iter <= maxitr .and. .not.converged)
 
-         !write(0,*) 'scvt iteration ',iter
+!         do i=1,n
+!            m = x(i) * x(i) + y(i) * y(i) + z(i) * z(i)
+!            m = sqrt(m)
+!            x(i) = x(i) / m
+!            y(i) = y(i) / m
+!            z(i) = z(i) / m
+!         end do
+
+!         write(0,*) 'scvt iteration ',iter
 
          !
          ! Compute Voronoi corners
          !
-         call compute_vc(rlat, rlon, n, nrow, ntmax, list, lptr, lend, listc, vclat, vclon, nvc)
+itimer = 1
+call start_timer(itimer)
+         call compute_vc_mgd(x, y, z, n, nrow, ntmax, list, lptr, lend, listc, xc, yc, zc, nvc)
+call stop_timer(itimer, sec, nsec)
+if (mod(iter,report_interval) == 0) then
+   write(0,'(a,i3,a1,i9.9)') 'compute_vc: ', sec, '.', nsec
+end if
+
    
          !
          ! Loop over vertices
          !   Within the loop, p0 always refers to the current vertex being processed
          !
-!$OMP PARALLEL DO PRIVATE(I, J, K, NEW_CTR_X, NEW_CTR_Y, NEW_CTR_Z, TOT_MASS, P1, P2, P3, PC, AREA, DENSITY, X, Y, Z, PTRI) SHARED(RLAT, RLON, RLAT_2, RLON_2, LPTR, LEND, LISTC, VCLAT, VCLON, NPTRI)
+call start_timer(itimer)
+!$OMP PARALLEL DO PRIVATE(I, J, K, NEW_CTR_X, NEW_CTR_Y, NEW_CTR_Z, TOT_MASS, P1_CART, P2_CART, P3_CART, AREA, DENSITY, XM, YM, ZM, PTRI_CART) SHARED(X, Y, Z, X_2, Y_2, Z_2, LPTR, LEND, LISTC, XC, YC, ZC, NPTRI)
          do i=1,n
 
             new_ctr_x = 0.0
             new_ctr_y = 0.0
             new_ctr_z = 0.0
             tot_mass = 0.0
+
    
             !
             ! Compute center of mass of Voronoi cell
             !
-            p1%lat = rlat(i)
-            p1%lon = rlon(i)
+            p1_cart(1) = x(i)
+            p1_cart(2) = y(i)
+            p1_cart(3) = z(i)
    
             k = lend(i)
-            p2%lat = vclat(listc(k))
-            p2%lon = vclon(listc(k))
-            if (p1%lon - p2%lon > pii)  p2%lon = p2%lon + 2.0*pii
-            if (p1%lon - p2%lon < -pii) p2%lon = p2%lon - 2.0*pii
+            p2_cart(1) = xc(listc(k))
+            p2_cart(2) = yc(listc(k))
+            p2_cart(3) = zc(listc(k))
             k = lptr(lend(i))
-            p3%lat = vclat(listc(k))
-            p3%lon = vclon(listc(k))
-            if (p1%lon - p3%lon > pii)  p3%lon = p3%lon + 2.0*pii
-            if (p1%lon - p3%lon < -pii) p3%lon = p3%lon - 2.0*pii
-   
-            call divide_triangle(p1, p2, p3, nptri, ptri)
-            do j=1,nptri
-               area = triangle_area(ptri(1,j), ptri(2,j), ptri(3,j), 1.0)
-               call center_of_mass(ptri(1,j), ptri(2,j), ptri(3,j), pc)
-               if (p1%lon - pc%lon > pii)  pc%lon = pc%lon + 2.0*pii
-               if (p1%lon - pc%lon < -pii) pc%lon = pc%lon - 2.0*pii
-               density = density_for_point(pc)
-               tot_mass = tot_mass + area * density
+            p3_cart(1) = xc(listc(k))
+            p3_cart(2) = yc(listc(k))
+            p3_cart(3) = zc(listc(k))
 
-               call convert_lx(x, y, z, 1.0, pc)
-               new_ctr_x = new_ctr_x + x*area*density
-               new_ctr_y = new_ctr_y + y*area*density
-               new_ctr_z = new_ctr_z + z*area*density
-            end do
+            pc_cart(:) = abs(p3_cart(:) - p2_cart(:))
+   
+            if (sum(pc_cart) > 0.00001) then
+               call divide_triangle_mgd(p1_cart, p2_cart, p3_cart, nptri, ptri_cart)
+               do j=1,nptri
+                  area = triangle_area_mgd(ptri_cart(:,1,j), ptri_cart(:,2,j), ptri_cart(:,3,j))
+                  call center_of_mass_mgd(ptri_cart(:,1,j), ptri_cart(:,2,j), ptri_cart(:,3,j), xm, ym, zm)
+                  density = density_for_point_mgd(xm, ym, zm)
+                  tot_mass = tot_mass + area * density
+
+                  new_ctr_x = new_ctr_x + xm * area * density
+                  new_ctr_y = new_ctr_y + ym * area * density
+                  new_ctr_z = new_ctr_z + zm * area * density
+               end do
+            end if
    
             do while (k /= lend(i))
                k = lptr(k)
-               p2 = p3
-               p3%lat = vclat(listc(k))
-               p3%lon = vclon(listc(k))
-               if (p1%lon - p3%lon > pii)  p3%lon = p3%lon + 2.0*pii
-               if (p1%lon - p3%lon < -pii) p3%lon = p3%lon - 2.0*pii
-               if (abs(p2%lat - p3%lat) < 0.00001 .and. abs(p2%lon - p3%lon) < 0.00001) cycle
+               p2_cart(:) = p3_cart(:)
 
+               p3_cart(1) = xc(listc(k))
+               p3_cart(2) = yc(listc(k))
+               p3_cart(3) = zc(listc(k))
+
+               pc_cart(:) = abs(p3_cart(:) - p2_cart(:))
    
-               call divide_triangle(p1, p2, p3, nptri, ptri)
-               do j=1,nptri
-                  area = triangle_area(ptri(1,j), ptri(2,j), ptri(3,j), 1.0)
-                  call center_of_mass(ptri(1,j), ptri(2,j), ptri(3,j), pc)
-                  if (p1%lon - pc%lon > pii)  pc%lon = pc%lon + 2.0*pii
-                  if (p1%lon - pc%lon < -pii) pc%lon = pc%lon - 2.0*pii
-                  density = density_for_point(pc)
-                  tot_mass = tot_mass + area * density
+               if (sum(pc_cart) > 0.00001) then
+                  call divide_triangle_mgd(p1_cart, p2_cart, p3_cart, nptri, ptri_cart)
+                  do j=1,nptri
+                     area = triangle_area_mgd(ptri_cart(:,1,j), ptri_cart(:,2,j), ptri_cart(:,3,j))
+                     call center_of_mass_mgd(ptri_cart(:,1,j), ptri_cart(:,2,j), ptri_cart(:,3,j), xm, ym, zm)
+                     density = density_for_point_mgd(xm, ym, zm)
+                     tot_mass = tot_mass + area * density
 
-                  call convert_lx(x, y, z, 1.0, pc)
-                  new_ctr_x = new_ctr_x + x*area*density
-                  new_ctr_y = new_ctr_y + y*area*density
-                  new_ctr_z = new_ctr_z + z*area*density
-               end do
+                     new_ctr_x = new_ctr_x + xm * area * density
+                     new_ctr_y = new_ctr_y + ym * area * density
+                     new_ctr_z = new_ctr_z + zm * area * density
+                  end do
+               end if
             end do
 
-            new_ctr_x = new_ctr_x / tot_mass
-            new_ctr_y = new_ctr_y / tot_mass
-            new_ctr_z = new_ctr_z / tot_mass
-            call convert_xl(new_ctr_x, new_ctr_y, new_ctr_z, pc)
-            rlat_2(i) = pc%lat
-            rlon_2(i) = pc%lon
+            if (tot_mass > 0.0) then
+               x_2(i) = new_ctr_x / tot_mass
+               y_2(i) = new_ctr_y / tot_mass
+               z_2(i) = new_ctr_z / tot_mass
+            else
+               x_2(i) = x(i)
+               y_2(i) = y(i)
+               z_2(i) = z(i)
+            end if
 
-   
+            m = x_2(i) * x_2(i) + y_2(i) * y_2(i) + z_2(i) * z_2(i)
+            m = sqrt(m)
+            x_2(i) = x_2(i) / m
+            y_2(i) = y_2(i) / m
+            z_2(i) = z_2(i) / m
+
          end do
 !$OMP END PARALLEL DO
+itimer = 1
+call stop_timer(itimer, sec, nsec)
+if (mod(iter,report_interval) == 0) then
+   write(0,'(a,i3,a1,i9.9)') 'centroids: ', sec, '.', nsec
+end if
+
 
          !Compute movement
-         if(mod(iter,100).eq.0) then
+         if (mod(iter,report_interval) == 0) then
            maxmovement = 0.0
            avg_movement = 0.0
-           do i = 1,n
+           do i=1,n
             
-              p_n1%lat = rlat(i)
-              p_n1%lon = rlon(i)
-              p_n2%lat = rlat_2(i)
-              p_n2%lon = rlon_2(i)
-  
-              call convert_lx(x,y,z,1.0,p_n1)
-              call convert_lx(new_ctr_x, new_ctr_y, new_ctr_z,1.0,p_n2)
-  
-              !x y z computation
-              movement = sqrt((x - new_ctr_x)**2 + (y - new_ctr_y)**2 + (z - new_ctr_z)**2)
+              movement = sqrt((x(i) - x_2(i))**2 + (y(i) - y_2(i))**2 + (z(i) - z_2(i))**2)
   
               if(movement > maxmovement) maxmovement = movement
-              avg_movement = avg_movement + movement/n
+              avg_movement = avg_movement + movement
   
-           enddo
-           if(avg_movement.lt.eps.and.l2_conv) converged=.true.
-           if(avg_movement.lt.eps.and.inf_conv) converged=.true.
-           write(6,*) n, iter, maxmovement, avg_movement
-         endif
+           end do
+           avg_movement = avg_movement / n
+           if (avg_movement < eps .and. l2_conv) converged=.true.
+           if (avg_movement < eps .and. inf_conv) converged=.true.
+           write(0,*) n, iter, maxmovement, avg_movement
+         end if
 
-         rlat(:) = rlat_2(:)
-         rlon(:) = rlon_2(:)
+         x(:) = x_2(:)
+         y(:) = y_2(:)
+         z(:) = z_2(:)
          iter = iter + 1
+
+         if (mod(iter,restart_interval) == 0) then
+            write(0,*) 'Writing restart file'
+            open(44,file='restart.dat',form='formatted',status='unknown')
+            write(44,*) n
+            do i=1,n
+               write(44,'(f18.15,1x,f18.15,1x,f18.15)') x(i), y(i), z(i)
+            end do
+            close(44)
+         end if
     
       end do
 
       deallocate(listc)
-      deallocate(vclat)
-      deallocate(vclon)
-      deallocate(rlat_2)
-      deallocate(rlon_2)
+      deallocate(xc)
+      deallocate(yc)
+      deallocate(zc)
+      deallocate(x_2)
+      deallocate(y_2)
+      deallocate(z_2)
 
       if (maxitr > 0) write(0,*) 'Finished SCVT solve'
 
@@ -249,7 +289,7 @@ module scvt
       !density_for_point = 1.0 + (1.19*cos(p%lat-3.141592654/4.0))**16.0
 
       ! Uniform Density Function
-       density_for_point = 1.0
+!      density_for_point = 1.0
 
       !Target Density Function based on hyperbolic tangent
       !		p_local%lat = latitude (radians) center of high-resolution region
@@ -259,17 +299,18 @@ module scvt
       !         minval = minimum density value. to have grid spacing vary by a factor of 8
       !                  set minval = (1.0 / 8.0)**4
 
-  !   p_local%lat = pii/4.0
-  !   p_local%lon = 1.25*pii
-  !   call convert_lx(rx, ry, rz, 1.0, p)
-  !   call convert_lx(prx, pry, prz, 1.0, p_local)
-  !   r = acos(rx*prx + ry*pry + rz*prz)
+      call convert_lx(rx, ry, rz, 1.0, p)
+!      call convert_lx(prx, pry, prz, 1.0, p_local)
+      prx = 0.0
+      pry = 0.0
+      prz = 1.0
+      r = acos(rx*prx + ry*pry + rz*prz)
 
-  !   width = 0.15
-  !   trans_center = pi/6.0
-  !   min_val = (1.0/8.0)**4
-  !   norm = 1.0/(1.0-min_val)
-  !   density_for_point = ((tanh((trans_center-r)*(1.0/width))+1.0)/2)/norm + min_val
+      width = 0.40
+      trans_center = pi/7.0
+      min_val = (1.0/5.0)**4
+      norm = 1.0/(1.0-min_val)
+      density_for_point = ((tanh((trans_center-r)*(1.0/width))+1.0)/2)/norm + min_val
 
    end function density_for_point
 
