@@ -32,6 +32,7 @@ program grid_gen
    integer :: n, nrow, ntmax, nvc
    integer :: tr1, tr2, tr3, tr4
    integer :: i1, i2, i3, k1, k2
+   integer :: nt
 
    type (adjacency_list) :: alist, clist
 
@@ -120,6 +121,9 @@ program grid_gen
    close(32)
 
    call scvt_solve(n, lend, x, y, z, nvc, list, lptr, if)
+
+   ! Write out triangulation
+   call compute_dt(x, y, z, n, ltri, nrow, ntmax, nt)
 
    call compute_vc_mgd(x, y, z, n, nrow, ntmax, list, lptr, lend, listc, xc, yc, zc, nvc)
    write(frame_name,'(a)') 'scvt_final.ps'

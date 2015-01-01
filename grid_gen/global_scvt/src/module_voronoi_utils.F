@@ -10,38 +10,42 @@ module voronoi_utils
    !
    ! Compute the Delaunay triangulation of a set of lat/lon locations.
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
-   subroutine compute_dt(rlat, rlon, n, ltri, nrow, ntmx, nt)
+   subroutine compute_dt(x, y, z, n, ltri, nrow, ntmx, nt)
 
       implicit none
 
       integer, intent(in) :: n, nrow, ntmx
       integer, intent(inout) :: nt
       integer, dimension(nrow, ntmx), intent(in) :: ltri
-      real, dimension(n), intent(in) :: rlat, rlon
+      real, dimension(n), intent(in) :: x, y, z
 
-      integer :: ierr, lnew, nscr
+      integer :: ierr, lnew
       integer, dimension(n) :: near, next
       integer, dimension(n) :: lend
       integer, dimension(6*n+12) :: list, lptr
-      real, dimension(n) :: x, y, z, dist
-
-      nscr = 6*n+12
-
-      call trans(n, rlat, rlon, x, y, z)
+      real, dimension(n) :: dist
+      integer :: i, prev_j, j
 
       write(0,*) 'started TRMESH'
       call trmesh(n, x, y, z, list, lptr, lend, lnew, near, next, dist, ierr)
       if (ierr /= 0) then
          write(0,*) 'Error: TRMESH returned error code ',ierr
       end if
-      write(0,*) 'finished TRMESH'
+      write(0,*) 'finished TRMESH ', lnew
 
-      write(0,*) 'started TRLIST'
-      call trlist(n, list, lptr, lend, nrow, nt, ltri, ierr)
-      if (ierr /= 0) then
-         write(0,*) 'Error: TRLIST returned error code ',ierr
-      end if
-      write(0,*) 'finished TRLIST'
+      open(88,file='triangles.dat',form='formatted',status='replace')
+      do i=1,n
+         prev_j = lend(i)
+         j = lptr(prev_j)
+         do while (j /= lend(i))
+            if (i < list(j) .and. i < list(prev_j)) write(88,*) i, list(j), list(prev_j)
+            prev_j = j
+            j = lptr(j)
+         end do
+         if (i < list(j) .and. i < list(prev_j)) write(88,*) i, list(j), list(prev_j)
+      end do
+      close(88)
+      write(0,*) 'finished LISTING TRIANGLES '
 
    end subroutine compute_dt
 

@@ -215,6 +215,15 @@ end if
     
       end do
 
+
+      open(89,file='density.dat',form='formatted',status='replace')
+      do i=1,n
+         density = density_for_point_mgd(x(i), y(i), z(i))
+         write(89,'(f18.16)') density
+      end do
+      close(89)
+
+
       deallocate(listc)
       deallocate(xc)
       deallocate(yc)
