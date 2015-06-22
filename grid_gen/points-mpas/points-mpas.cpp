@@ -18,6 +18,8 @@
 //
 //    Doug Jacobsen
 //
+//    Modified by Michael G. Duda, 20 June 2015
+//
 //**************************************************
 
 
@@ -34,28 +36,25 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-//#include <netcdfcpp.h>
 #include "netcdfcpp.h"
 #include "triangulation.h"
 #include "mpi.h"
 #include "pnetcdf.h"
 
-#define SEED	3729
 
 using namespace std;
 using namespace tr1;
 
-struct int_hasher {/*{{{*/
+struct int_hasher {
 	  size_t operator()(const int v) const { return v; }
-};/*}}}*/
+};
 
 int pt_type;
 int tri_base;
-int vert_levs;
-int num_tracers;
 double radius;
 double eps;
-int vordraw;
+
+size_t nCells, nEdges, nVertices, maxEdges, maxEdges2, TWO, vertexDegree;
 
 int ncidp;
 int ncells_dim;
@@ -83,33 +82,30 @@ int verticesonedge_var;
 int nedgesonedge_var;
 int cellsonvertex_var;
 int edgesonvertex_var;
-int fcell_var;
 int areacell_var;
-int fedge_var;
 int angleedge_var;
 int dcedge_var, dvedge_var;
 int weightsonedge_var;
-int fvertex_var;
 int areatriangle_var;
 int kiteareasonvertex_var;
 int meshdensity_var;
 
         
-/*{{{*/ // Grid information, points, triangles, ccenters, edges
+// Grid information, points, triangles, ccenters, edges
 //unordered_set<pnt,pnt::hasher> edges;
 unordered_set<pnt,pnt::edge_hasher> edges;
 vector<pnt> edge_vec;
 vector<pnt> points;
 vector<pnt> ccenters;
 vector<tri> triangles;
-/*}}}*/
-/*{{{*/ // Real connectivity arrays
+
+// Real connectivity arrays
 vector<vector<int> > cellsOnCell, cellsOnEdge, cellsOnVertex;
 vector<vector<int> > edgesOnCell, edgesOnEdge, edgesOnVertex;
 vector<vector<int> > verticesOnCell, verticesOnEdge;
 vector<vector<double> > weightsOnEdge;
-/*}}}*/
-/*{{{*/ // Unique connectivity holders
+
+// Unique connectivity holders
 vector<unordered_set<int, int_hasher> > cellsOnCell_u;
 vector<unordered_set<int, int_hasher> > cellsOnEdge_u;
 vector<unordered_set<int, int_hasher> > cellsOnVertex_u;
@@ -118,19 +114,16 @@ vector<unordered_set<int, int_hasher> > edgesOnEdge_u;
 vector<unordered_set<int, int_hasher> > edgesOnVertex_u;
 vector<unordered_set<int, int_hasher> > verticesOnCell_u;
 vector<unordered_set<int, int_hasher> > verticesOnEdge_u;
-/*}}}*/
-/*{{{*/ // Grid Parameters
+
+// Grid Parameters
 vector<vector<double> > kiteAreasOnVertex;
 vector<double> areaCell;
 vector<double> areaTriangle;
 vector<double> angleEdge;
 vector<double> dcEdge;
 vector<double> dvEdge;
-vector<double> fCell;
-vector<double> fEdge;
-vector<double> fVertex;
-/*}}}*/
-/*{{{*/ // Iterators for STL containers
+
+// Iterators for STL containers
 vector<vector<int> >::iterator vec_int_itr;
 vector<int>::iterator int_itr;
 vector<vector<double> >::iterator vec_dbl_itr;
@@ -140,9 +133,8 @@ vector<unordered_set<int, int_hasher> >::iterator us_itr;
 unordered_set<pnt,pnt::hasher>::iterator edge_itr;
 vector<pnt>::iterator point_itr;
 vector<tri>::iterator tri_itr;
-/*}}}*/
 
-/*{{{*/ // Function Declarations
+// Function Declarations
 void readParameters();
 void readPoints();
 void readTriangulation();
@@ -150,142 +142,124 @@ void triangulatePoints();
 void buildConnectivityArrays();
 void orderConnectivityArrays();
 void makeWeightsOnEdge();
-int outputGridDimensions(const string outputFilename);
-int outputGridAttributes(const string outputFilename);
-int outputGridCoordinates(const string outputFilename);
-int outputCellConnectivity(const string outputFilename);
-int outputEdgeConnectivity(const string outputFilename);
-int outputVertexConnectivity(const string outputFilename);
-int outputCellParameters(const string outputFilename);
-int outputVertexParameters(const string outputFilename);
-int outputEdgeParameters(const string outputFilename);
-int outputInitialConditions(const string outputFilename);
-int outputMeshDensity(const string outputFilename);
-int outputVordrawArrays(const string outputFilename);
+int outputGridDimensions();
+int outputGridAttributes();
+int outputGridCoordinates();
+int outputCellConnectivity();
+int outputEdgeConnectivity();
+int outputVertexConnectivity();
+int outputCellParameters();
+int outputVertexParameters();
+int outputEdgeParameters();
+int outputMeshDensity();
+int outputVordrawArrays();
 int writeGraphFile();
-double coriolisParameter(const pnt &p);
-/*}}}*/
 
 
-int main(int argc, char ** argv){
+int main(int argc, char ** argv)
+{
         int ierr;
 
 	int error_code;
 
         ierr = MPI_Init(&argc, &argv);
 
-	string name = "grid.nc";
-
-	cout << "Reading in paramters" << endl;
+	cerr << "Reading in paramters" << endl;
 	readParameters();
 
-	cout << " --- Points are defined on a sphere --- Radius = " << radius << endl;
+	cerr << " --- Points are defined on a sphere --- Radius = " << radius << endl;
 
-	cout << "Reading in points" << endl;
+	cerr << "Reading in points" << endl;
 	readPoints();
-	cout << "Reading in triangles" << endl;
+
+	cerr << "Reading in triangles" << endl;
 	readTriangulation();
 
-	cout << "Building connectivity arrays" << endl;
+	cerr << "Building connectivity arrays" << endl;
 	buildConnectivityArrays();
-	cout << "Ordering connectivity arrays" << endl;
+
+	cerr << "Ordering connectivity arrays" << endl;
 	orderConnectivityArrays();
-	cout << "Making weights on edge" << endl;
+
+	cerr << "Making weights on edge" << endl;
 	makeWeightsOnEdge();
 
-	cout << "Writing grid dimensions" << endl;
-	if(error_code = outputGridDimensions(name)){
-		cout << "Error - " << error_code << endl;
+	cerr << "Writing grid dimensions" << endl;
+	if(error_code = outputGridDimensions()){
+		cerr << "Error - " << error_code << endl;
 		exit(error_code);
 	}
-	cout << "Writing grid attributes" << endl;
-	if(error_code = outputGridAttributes(name)){
-		cout << "Error - " << error_code << endl;
+	cerr << "Writing grid attributes" << endl;
+	if(error_code = outputGridAttributes()){
+		cerr << "Error - " << error_code << endl;
 		exit(error_code);
 	}
-	cout << "Writing grid coordinates" << endl;
-	if(error_code = outputGridCoordinates(name)){
-		cout << "Error - " << error_code << endl;
+	cerr << "Writing grid coordinates" << endl;
+	if(error_code = outputGridCoordinates()){
+		cerr << "Error - " << error_code << endl;
 		exit(error_code);
 	}
-	cout << "Writing cell connectivity" << endl;
-	if(error_code = outputCellConnectivity(name)){
-		cout << "Error - " << error_code << endl;
+	cerr << "Writing cell connectivity" << endl;
+	if(error_code = outputCellConnectivity()){
+		cerr << "Error - " << error_code << endl;
 		exit(error_code);
 	}
-	cout << "Writing edge connectivity" << endl;
-	if(error_code = outputEdgeConnectivity(name)){
-		cout << "Error - " << error_code << endl;
+	cerr << "Writing edge connectivity" << endl;
+	if(error_code = outputEdgeConnectivity()){
+		cerr << "Error - " << error_code << endl;
 		exit(error_code);
 	}
-	cout << "Writing vertex connectivity" << endl;
-	if(error_code = outputVertexConnectivity(name)){
-		cout << "Error - " << error_code << endl;
+	cerr << "Writing vertex connectivity" << endl;
+	if(error_code = outputVertexConnectivity()){
+		cerr << "Error - " << error_code << endl;
 		exit(error_code);
 	}
-	cout << "Writing cell parameters" << endl;
-	if(error_code = outputCellParameters(name)){
-		cout << "Error - " << error_code << endl;
+	cerr << "Writing cell parameters" << endl;
+	if(error_code = outputCellParameters()){
+		cerr << "Error - " << error_code << endl;
 		exit(error_code);
 	}
-	cout << "Writing edge parameters" << endl;
-	if(error_code = outputEdgeParameters(name)){
-		cout << "Error - " << error_code << endl;
+	cerr << "Writing edge parameters" << endl;
+	if(error_code = outputEdgeParameters()){
+		cerr << "Error - " << error_code << endl;
 		exit(error_code);
 	}
-	cout << "Writing vertex parameters" << endl;
-	if(error_code = outputVertexParameters(name)){
-		cout << "Error - " << error_code << endl;
+	cerr << "Writing vertex parameters" << endl;
+	if(error_code = outputVertexParameters()){
+		cerr << "Error - " << error_code << endl;
 		exit(error_code);
 	}
-	cout << "Making and writing initial conditions" << endl;
-	if(error_code = outputInitialConditions(name)){
-		cout << "Error - " << error_code << endl;
+	cerr << "Reading and writing meshDensity" << endl;
+	if(error_code = outputMeshDensity()){
+		cerr << "Error - " << error_code << endl;
 		exit(error_code);
-	}
-	cout << "Reading and writing meshDensity" << endl;
-	if(error_code = outputMeshDensity(name)){
-		cout << "Error - " << error_code << endl;
-		exit(error_code);
-	}
-	if(vordraw){
-		cout << "Writing arrays for Vordraw" << endl;
-		if(error_code = outputVordrawArrays(name)){
-			cout << "Error - " << error_code << endl;
-			exit(error_code);
-		}
 	}
 
-	cout << "Writing graph.info file" << endl;
+	cerr << "Writing graph.info file" << endl;
 	writeGraphFile();
-	cout << points.size() << " cells." << endl;
-	cout << edge_vec.size() << " edges." << endl;
-	cout << ccenters.size() << " vertices." << endl;
+	cerr << points.size() << " cells." << endl;
+	cerr << edge_vec.size() << " edges." << endl;
+	cerr << ccenters.size() << " vertices." << endl;
 
         ierr = MPI_Finalize();
 	
 	return 0;
 }
 
-void readParameters(){/*{{{*/
+void readParameters()
+{
 	ifstream params("Params");
 	if(!params){
-		cout << "Params file not found. Writing default, and using default values." << endl;
+		cerr << "Params file not found. Writing default, and using default values." << endl;
 		radius = 1.0;
-		vert_levs = 1;
-		num_tracers = 1;
 		eps = 0.0;
-		vordraw = 0;
 		params.close();
 
 		ofstream pout("Params");
 		pout << "Is the input Cartesian or Latitude-Longitude (0 - Cartesian, 1 - Lat-lon)" << endl << "0" << endl;
 		pout << "Are the triangles base zero or base one? (0 - base 0, 1 - base 1)" << endl << "0" << endl;
 		pout << "What is the radius of the sphere these points are defined on?" << endl << "1.0" << endl;
-		pout << "How many vertical levels do you want in the output grid?" << endl << "1" << endl;
-		pout << "How many tracers do you want in the output grid?" << endl << "1" << endl;
 		pout << "What was the convergence criteria used to make this grid?" << endl << "0.0" << endl;
-		pout << "Should this grid be vordraw compatible?" << endl << "0" << endl;
 		pout.close();
 	} else {
 		params.ignore(10000,'\n');
@@ -298,21 +272,14 @@ void readParameters(){/*{{{*/
 		params >> radius;
 		params.ignore(10000,'\n');
 		params.ignore(10000,'\n');
-		params >> vert_levs;
-		params.ignore(10000,'\n');
-		params.ignore(10000,'\n');
-		params >> num_tracers;
-		params.ignore(10000,'\n');
-		params.ignore(10000,'\n');
 		params >> eps;	
-		params.ignore(10000,'\n');
-		params.ignore(10000,'\n');
-		params >> vordraw;
 		params.close();
 	}
 
-}/*}}}*/
-void readPoints(){/*{{{*/
+}
+
+void readPoints()
+{
 	/******************************************************************
 	 *
 	 * This function reads in the point set from a file, and inserts it
@@ -323,10 +290,6 @@ void readPoints(){/*{{{*/
 	double lat, lon;
 	int i;
 	ifstream pt_start("SaveVertices");
-
-#ifdef _DEBUG
-	cout << "Setting up points." << endl;
-#endif
 
 	i = 0;
 	while(!pt_start.eof()){
@@ -345,8 +308,10 @@ void readPoints(){/*{{{*/
 		i++;
 	}
 	pt_start.close();
-}/*}}}*/
-void readTriangulation(){/*{{{*/
+}
+
+void readTriangulation()
+{
 	/*****************************************************************
 	 *
 	 * This function reads in the triangulation from a file.
@@ -481,8 +446,10 @@ void readTriangulation(){/*{{{*/
 
 	edges.clear();
 	tris.close();
-}/*}}}*/
-void buildConnectivityArrays(){/*{{{*/
+}
+
+void buildConnectivityArrays()
+{
 	/*************************************************************************
 	 *
 	 * This function takes the triangulation and point set previously read in
@@ -507,7 +474,6 @@ void buildConnectivityArrays(){/*{{{*/
 	edgesOnCell_u.resize(points.size());
 	verticesOnCell_u.resize(points.size());
 	areaCell.resize(points.size());
-	fCell.resize(points.size());
 
 	cellsOnEdge.resize(edge_vec.size());
 	edgesOnEdge.resize(edge_vec.size());
@@ -518,7 +484,6 @@ void buildConnectivityArrays(){/*{{{*/
 	angleEdge.resize(edge_vec.size());
 	dcEdge.resize(edge_vec.size());
 	dvEdge.resize(edge_vec.size());
-	fEdge.resize(edge_vec.size());
 
 	cellsOnVertex_u.resize(ccenters.size());
 	edgesOnVertex_u.resize(ccenters.size());
@@ -526,7 +491,6 @@ void buildConnectivityArrays(){/*{{{*/
 	edgesOnVertex.resize(ccenters.size());
 	areaTriangle.resize(ccenters.size());
 	kiteAreasOnVertex.resize(ccenters.size());
-	fVertex.resize(ccenters.size());
 
 	for(int i = 0; i < points.size(); i ++){
 		areaCell[i] = 0.0;
@@ -608,15 +572,11 @@ void buildConnectivityArrays(){/*{{{*/
 		area_temp = triArea(points.at(vi3),ccenters.at((*tri_itr).idx),edge2);
 		area_temp += triArea(points.at(vi3),edge3,ccenters.at((*tri_itr).idx));
 		areaCell[vi3] += area_temp;
-
-		//Coriolis Parameters for cells and vertices
-		fCell[vi1] = coriolisParameter(points.at(vi1));
-		fCell[vi2] = coriolisParameter(points.at(vi2));
-		fCell[vi3] = coriolisParameter(points.at(vi3));
-		fVertex[(*tri_itr).idx] = coriolisParameter(ccenters.at((*tri_itr).idx));
 	}
-}/*}}}*/
-void orderConnectivityArrays(){/*{{{*/
+}
+
+void orderConnectivityArrays()
+{
 	/******************************************************************
 	 *
 	 * This function takes all of the hash tables that uniquely define the connectivity
@@ -627,7 +587,7 @@ void orderConnectivityArrays(){/*{{{*/
 
 	// Order cellsOnEdge and verticesOnEdge, and make angleEdge
 	j = 0;
-	for(i = 0; i < edge_vec.size(); i++){/*{{{*/
+	for(i = 0; i < edge_vec.size(); i++) {
 		int cell1, cell2, vert1, vert2;
 		pnt u, v, cross;
 		pnt np;
@@ -665,8 +625,6 @@ void orderConnectivityArrays(){/*{{{*/
 		dcEdge[i] = points.at(cell1).sphereDistance(points.at(cell2));
 		dvEdge[i] = ccenters.at(vert1).sphereDistance(ccenters.at(vert2));
 
-		fEdge[i] = coriolisParameter(edge);
-
 		cross = u.cross(v);
 		sign = cross.dot(edge);
 		cellsOnEdge[i].push_back(cell1);
@@ -691,10 +649,6 @@ void orderConnectivityArrays(){/*{{{*/
 		// 	  makes with the local eastward direction.
 		np = pntFromLatLon(edge.getLat()+0.05, edge.getLon());
 		angleEdge[i] = acos( std::max(std::min((ccenters.at(vert2).getLat() - ccenters.at(vert1).getLat())/dvEdge[i],1.0),-1.0) );
-if (isnan(angleEdge[i])) {
-   printf("vert1 lat = %lf, vert2 lat = %lf, dv = %lf\n", ccenters.at(vert2).getLat(), ccenters.at(vert1).getLat(), dvEdge[i]);
-   printf("arg = %lf\n", (ccenters.at(vert2).getLat() - ccenters.at(vert1).getLat())/dvEdge[i]);
-}
 
                 sign = ccenters.at(vert2).getLon() - ccenters.at(vert1).getLon();
                 if (sign >= M_PI/2.0) 
@@ -706,20 +660,13 @@ if (isnan(angleEdge[i])) {
                    sign = -1.0;
                 else
                    sign = 1.0;
-/* MGD
-		sign = planeAngle(edge, np, ccenters.at(vert2), edge);
-		sign = sign/fabs(sign);
-*/
 		angleEdge[i] = fabs(angleEdge[i]) * sign;
-if (isnan(angleEdge[i])) {
-   printf("sign = %lf, lon2 = %lf, lon1 = %lf\n", sign, ccenters.at(vert2).getLon(), ccenters.at(vert1).getLon());
-}
 		if (angleEdge[i] > M_PI) angleEdge[i] = angleEdge[i] - 2.0*M_PI;
 		if (angleEdge[i] < -M_PI) angleEdge[i] = angleEdge[i] + 2.0*M_PI;
-	}/*}}}*/
+	}
 
 	//Order cellsOnVertex and edgesOnVertex, areaTriangle
-	for(i = 0; i < ccenters.size(); i++){/*{{{*/
+	for(i = 0; i < ccenters.size(); i++) {
 
 		/*
 		 * Since all of the *OnVertex arrays should only have 3 items, it's easy to order CCW
@@ -777,10 +724,10 @@ if (isnan(angleEdge[i])) {
 		edgesOnVertex[i].push_back(e3);
 
 		areaTriangle[i] = triArea(points.at(c1),points.at(c2),points.at(c3));
-	}/*}}}*/
+	}
 
 	//Order cellsOnCell, edgesOnCell and verticesOnCell
-	for(i = 0; i < points.size(); i++){/*{{{*/
+	for(i = 0; i < points.size(); i++) {
 		// *
 		// * Since we have the *OnEdge arrays ordered correctly, and the *OnVertex arrays ordered correctly,
 		// * it should be easy to order the *OnCell arrays
@@ -801,13 +748,13 @@ if (isnan(angleEdge[i])) {
 			edgesOnCell[i].push_back(cur_edge);
 			erased = edgesOnCell_u[i].erase(cur_edge);
 			if(erased != 1){
-				cout << " Edge " << cur_edge << " not valid" << endl;
-				cout << " On cell " << cell_center << endl;
-				cout << " Available edges on cell..." << endl;
+				cerr << " Edge " << cur_edge << " not valid" << endl;
+				cerr << " On cell " << cell_center << endl;
+				cerr << " Available edges on cell..." << endl;
 				for(u_int_itr = edgesOnCell_u[i].begin(); u_int_itr != edgesOnCell_u[i].end(); ++u_int_itr){
-					cout << (*u_int_itr) << " ";
+					cerr << (*u_int_itr) << " ";
 				}
-				cout << endl;
+				cerr << endl;
 				assert((int)erased == 1);
 			}
 
@@ -846,10 +793,10 @@ if (isnan(angleEdge[i])) {
 				break;
 			}
 		}
-	}/*}}}*/
+	}
 
 	//Order edgesOnEdge
-	for(i = 0; i < edge_vec.size(); i++){/*{{{*/
+	for(i = 0; i < edge_vec.size(); i++) {
 		/*
 		 * Edges on edge should be easily built now that all of the other connectivity arrays are built
 		 */
@@ -900,7 +847,7 @@ if (isnan(angleEdge[i])) {
 			}
 		}
 		assert(found == 0);
-	}/*}}}*/
+	}
 
 	cellsOnCell_u.clear();
 	cellsOnEdge_u.clear();
@@ -910,8 +857,10 @@ if (isnan(angleEdge[i])) {
 	edgesOnVertex_u.clear();
 	verticesOnEdge_u.clear();
 	verticesOnCell_u.clear();
-}/*}}}*/
-void makeWeightsOnEdge(){/*{{{*/
+}
+
+void makeWeightsOnEdge()
+{
 	/************************************************************
 	 *
 	 * This function computes weightsOnEdge based on kiteAreasOnVertex
@@ -967,7 +916,7 @@ void makeWeightsOnEdge(){/*{{{*/
 					verticesOnEdge[prev_edge].at(1) == verticesOnEdge[cur_edge].at(1)){
 				vert1 = verticesOnEdge[prev_edge].at(1);
 			} else {
-				cout << "Edge " << prev_edge << " doesn't share a vertex with edge " << cur_edge << endl;
+				cerr << "Edge " << prev_edge << " doesn't share a vertex with edge " << cur_edge << endl;
 				exit(1);
 			}
 	
@@ -981,7 +930,6 @@ void makeWeightsOnEdge(){/*{{{*/
 			for(k = 0; k < 3; k++){
 				if(cellsOnVertex[vert1].at(k) == cell1){
 					kiteAreasOnVertex[vert1][k] = area;
-//cout << "Area = " << area << endl;
 				}
 			}
 
@@ -1018,9 +966,9 @@ void makeWeightsOnEdge(){/*{{{*/
 					verticesOnEdge[prev_edge].at(1) == verticesOnEdge[cur_edge].at(1)){
 				vert1 = verticesOnEdge[prev_edge].at(1);
 			} else {
-				cout << "Edge " << prev_edge << " doesn't share a vertex with edge " << cur_edge << endl;
-				cout << "Edge " << prev_edge << " has vertices " << verticesOnEdge[prev_edge].at(0) << " " << verticesOnEdge[prev_edge].at(1) << endl;
-				cout << "Edge " << cur_edge << " has vertices " << verticesOnEdge[cur_edge].at(0) << " " << verticesOnEdge[cur_edge].at(1) << endl;
+				cerr << "Edge " << prev_edge << " doesn't share a vertex with edge " << cur_edge << endl;
+				cerr << "Edge " << prev_edge << " has vertices " << verticesOnEdge[prev_edge].at(0) << " " << verticesOnEdge[prev_edge].at(1) << endl;
+				cerr << "Edge " << cur_edge << " has vertices " << verticesOnEdge[cur_edge].at(0) << " " << verticesOnEdge[cur_edge].at(1) << endl;
 				exit(1);
 			}
 
@@ -1031,7 +979,6 @@ void makeWeightsOnEdge(){/*{{{*/
 			for(k = 0; k < 3; k++){
 				if(cellsOnVertex[vert1].at(k) == cell2){
 					kiteAreasOnVertex[vert1][k] = area;
-//cout << "Area = " << area << endl;
 				}
 			}
 
@@ -1048,9 +995,10 @@ void makeWeightsOnEdge(){/*{{{*/
 			jj++;
 		}
 	}
-}/*}}}*/
+}
 
-int outputGridDimensions( const string outputFilename ){/*{{{*/
+int outputGridDimensions(void)
+{
 	/************************************************************************
 	 *
 	 * This function writes the grid dimensions to the netcdf file named
@@ -1063,73 +1011,46 @@ int outputGridDimensions( const string outputFilename ){/*{{{*/
 	// Return this code to the OS in case of failure.
 	static const int NC_ERR = 2;
 	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
 	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Replace, NULL, 0, NcFile::Offset64Bits);
         ierr = ncmpi_create(MPI_COMM_WORLD, "x1.huge.nc", NC_64BIT_DATA, MPI_INFO_NULL, &ncidp);
 
-	int nCells, maxEdges;
-	int junk;
-
-	nCells = points.size();
+	nCells = (size_t)points.size();
 
 	maxEdges = 0;
 
 	for(vec_int_itr = edgesOnCell.begin(); vec_int_itr != edgesOnCell.end(); ++vec_int_itr){
-		maxEdges = std::max(maxEdges, (int)(*vec_int_itr).size());	
+		maxEdges = std::max(maxEdges, (size_t)(*vec_int_itr).size());	
 	}
 	
 	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
         if(ierr != NC_NOERR) return NC_ERR;
 	
 	// define dimensions
-	NcDim *nCellsDim;
-	NcDim *nEdgesDim;
-	NcDim *nVerticesDim;
-	NcDim *maxEdgesDim;
-	NcDim *maxEdges2Dim;
-	NcDim *TWODim;
-	NcDim *THREEDim;
-	NcDim *vertexDegreeDim;
-	NcDim *nVertLevelsDim;
-	NcDim *nTracersDim;
-	NcDim *timeDim;
+	nEdges = (3 * nCells) - 6;
+	nVertices = (2 * nCells) - 4;
+	maxEdges2 = 2 * maxEdges;
+	TWO = 2;
+	vertexDegree = 3;
 	
-	// write dimensions
-	if (!(nCellsDim =		grid.add_dim(	"nCells",		nCells)			)) return NC_ERR;
-	if (!(nEdgesDim =		grid.add_dim(	"nEdges",		(3*nCells)-6)	)) return NC_ERR;
-	if (!(nVerticesDim =	grid.add_dim(	"nVertices",	(2*nCells)-4)	)) return NC_ERR;
-	if (!(maxEdgesDim =		grid.add_dim(	"maxEdges",		maxEdges)		)) return NC_ERR;
-	if (!(maxEdges2Dim =	grid.add_dim(	"maxEdges2",	maxEdges*2)		)) return NC_ERR;
-	if (!(TWODim =			grid.add_dim(	"TWO",			2)				)) return NC_ERR;
-	if (!(vertexDegreeDim = grid.add_dim(   "vertexDegree", 3)				)) return NC_ERR;
-	if (!(nVertLevelsDim =  grid.add_dim(   "nVertLevels",  vert_levs)      )) return NC_ERR;
-	if (!(nTracersDim =     grid.add_dim(   "nTracers", num_tracers)        )) return NC_ERR;
-	if (!(timeDim = 		grid.add_dim(   "Time")					)) return NC_ERR;
-
         ierr = ncmpi_def_dim(ncidp, "nCells", (MPI_Offset)nCells, &ncells_dim);
-        ierr = ncmpi_def_dim(ncidp, "nEdges", (MPI_Offset)(3*nCells-6), &nedges_dim);
-        ierr = ncmpi_def_dim(ncidp, "nVertices", (MPI_Offset)(2*nCells-4), &nvertices_dim);
+        ierr = ncmpi_def_dim(ncidp, "nEdges", (MPI_Offset)(nEdges), &nedges_dim);
+        ierr = ncmpi_def_dim(ncidp, "nVertices", (MPI_Offset)(nVertices), &nvertices_dim);
         ierr = ncmpi_def_dim(ncidp, "maxEdges", (MPI_Offset)(maxEdges), &maxedges_dim);
-        ierr = ncmpi_def_dim(ncidp, "maxEdges2", (MPI_Offset)(2*maxEdges), &maxedges2_dim);
-        ierr = ncmpi_def_dim(ncidp, "TWO", (MPI_Offset)(2), &two_dim);
-        ierr = ncmpi_def_dim(ncidp, "vertexDegree", (MPI_Offset)(3), &vertexdegree_dim);
+        ierr = ncmpi_def_dim(ncidp, "maxEdges2", (MPI_Offset)(maxEdges2), &maxedges2_dim);
+        ierr = ncmpi_def_dim(ncidp, "TWO", (MPI_Offset)(TWO), &two_dim);
+        ierr = ncmpi_def_dim(ncidp, "vertexDegree", (MPI_Offset)(vertexDegree), &vertexdegree_dim);
 
-	cout << " nCells --- " << nCells << endl;
-	cout << " nEdges --- " << (3*nCells)-6 << " " << edge_vec.size() << endl;
-	cout << " nVertices --- " << (2*nCells)-4 << " " << triangles.size() << endl;
-	cout << " maxEdges --- " << maxEdges << endl;
-	cout << " maxEdges2 --- " << maxEdges*2 << endl;
-	cout << " nVertLevels --- " << vert_levs << endl;
-	cout << " nTracers --- " << num_tracers << endl;
+	cerr << " nCells --- " << nCells << endl;
+	cerr << " nEdges --- " << nEdges << " " << edge_vec.size() << endl;
+	cerr << " nVertices --- " << nVertices << " " << triangles.size() << endl;
+	cerr << " maxEdges --- " << maxEdges << endl;
+	cerr << " maxEdges2 --- " << maxEdges2 << endl;
 
-	// file closed when file obj goes out of scope
 	return 0;
-}/*}}}*/
-int outputGridAttributes( const string outputFilename ){/*{{{*/
+}
+
+int outputGridAttributes(void)
+{
 	/************************************************************************
 	 *
 	 * This function writes the grid dimensions to the netcdf file named
@@ -1143,21 +1064,8 @@ int outputGridAttributes( const string outputFilename ){/*{{{*/
 	// Return this code to the OS in case of failure.
 	static const int NC_ERR = 2;
 	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
-	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Write);
-
-	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
-	NcBool sphereAtt, radiusAtt;
-	NcBool convAtt;
 	
 	// write attributes
-	if (!(sphereAtt = grid.add_att(   "on_a_sphere", "YES             \0"))) return NC_ERR;
-	if (!(radiusAtt = grid.add_att(   "sphere_radius", radius))) return NC_ERR;
-	if (!(convAtt   = grid.add_att( "eps", eps ))) return NC_ERR;
 
         ierr = ncmpi_def_var(ncidp, "latCell", NC_DOUBLE, 1, &ncells_dim, &latcell_var);
         ierr = ncmpi_def_var(ncidp, "lonCell", NC_DOUBLE, 1, &ncells_dim, &loncell_var);
@@ -1203,16 +1111,13 @@ int outputGridAttributes( const string outputFilename ){/*{{{*/
         ncdims[0] = nvertices_dim;
         ncdims[1] = vertexdegree_dim;
         ierr = ncmpi_def_var(ncidp, "edgesOnVertex", NC_INT, 2, ncdims, &edgesonvertex_var);
-        ierr = ncmpi_def_var(ncidp, "fCell", NC_DOUBLE, 1, &ncells_dim, &fcell_var);
         ierr = ncmpi_def_var(ncidp, "areaCell", NC_DOUBLE, 1, &ncells_dim, &areacell_var);
-        ierr = ncmpi_def_var(ncidp, "fEdge", NC_DOUBLE, 1, &nedges_dim, &fedge_var);
         ierr = ncmpi_def_var(ncidp, "angleEdge", NC_DOUBLE, 1, &nedges_dim, &angleedge_var);
         ierr = ncmpi_def_var(ncidp, "dcEdge", NC_DOUBLE, 1, &nedges_dim, &dcedge_var);
         ierr = ncmpi_def_var(ncidp, "dvEdge", NC_DOUBLE, 1, &nedges_dim, &dvedge_var);
         ncdims[0] = nedges_dim;
         ncdims[1] = maxedges2_dim;
         ierr = ncmpi_def_var(ncidp, "weightsOnEdge", NC_DOUBLE, 2, ncdims, &weightsonedge_var);
-        ierr = ncmpi_def_var(ncidp, "fVertex", NC_DOUBLE, 1, &nvertices_dim, &fvertex_var);
         ierr = ncmpi_def_var(ncidp, "areaTriangle", NC_DOUBLE, 1, &nvertices_dim, &areatriangle_var);
         ncdims[0] = nvertices_dim;
         ncdims[1] = vertexdegree_dim;
@@ -1224,10 +1129,11 @@ int outputGridAttributes( const string outputFilename ){/*{{{*/
 
         ierr = ncmpi_enddef(ncidp);
 	
-	// file closed when file obj goes out of scope
 	return 0;
-}/*}}}*/
-int outputGridCoordinates( const string outputFilename) {/*{{{*/
+}
+
+int outputGridCoordinates(void) 
+{
 	/************************************************************************
 	 *
 	 * This function writes the grid coordinates to the netcdf file named
@@ -1242,31 +1148,7 @@ int outputGridCoordinates( const string outputFilename) {/*{{{*/
 	// Return this code to the OS in case of failure.
 	static const int NC_ERR = 2;
 	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
-	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Write);
-	
-	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
-	
-	// fetch dimensions
-	NcDim *nCellsDim = grid.get_dim( "nCells" );
-	NcDim *nEdgesDim = grid.get_dim( "nEdges" );
-	NcDim *nVerticesDim = grid.get_dim( "nVertices" );
-
-	int nCells = nCellsDim->size();
-	int nEdges = nEdgesDim->size();
-	int nVertices = nVerticesDim->size();
-
-	//Define nc variables
-	NcVar *xCellVar, *yCellVar, *zCellVar, *xEdgeVar, *yEdgeVar, *zEdgeVar, *xVertexVar, *yVertexVar, *zVertexVar;
-	NcVar *lonCellVar, *latCellVar, *lonEdgeVar, *latEdgeVar, *lonVertexVar, *latVertexVar;
-	NcVar *idx2cellVar, *idx2edgeVar, *idx2vertexVar;
-
-
-	int i;
+	size_t i;
 	
 	double *x, *y, *z, *lat, *lon;
 	int *idxTo;
@@ -1292,29 +1174,11 @@ int outputGridCoordinates( const string outputFilename) {/*{{{*/
 
         ierr = ncmpi_begin_indep_data(ncidp);
 
-//	if (!(latCellVar = grid.add_var("latCell", ncDouble, nCellsDim))) return NC_ERR;
-//	if (!latCellVar->put(lat,nCells)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, latcell_var, lat);
         ierr = ncmpi_put_var_double(ncidp, latcell_var, lat);
-//	if (!(lonCellVar = grid.add_var("lonCell", ncDouble, nCellsDim))) return NC_ERR;
-//	if (!lonCellVar->put(lon,nCells)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, loncell_var, lon);
         ierr = ncmpi_put_var_double(ncidp, loncell_var, lon);
-//	if (!(xCellVar = grid.add_var("xCell", ncDouble, nCellsDim))) return NC_ERR;
-//	if (!xCellVar->put(x,nCells)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, xcell_var, x);
         ierr = ncmpi_put_var_double(ncidp, xcell_var, x);
-//	if (!(yCellVar = grid.add_var("yCell", ncDouble, nCellsDim))) return NC_ERR;
-//	if (!yCellVar->put(y,nCells)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, ycell_var, y);
         ierr = ncmpi_put_var_double(ncidp, ycell_var, y);
-//	if (!(zCellVar = grid.add_var("zCell", ncDouble, nCellsDim))) return NC_ERR;
-//	if (!zCellVar->put(z,nCells)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, zcell_var, z);
         ierr = ncmpi_put_var_double(ncidp, zcell_var, z);
-//	if (!(idx2cellVar = grid.add_var("indexToCellID", ncInt, nCellsDim))) return NC_ERR;
-//	if (!idx2cellVar->put(idxTo,nCells)) return NC_ERR;
-//        ierr = ncmpi_put_var_int_all(ncidp, idx2cell_var, idxTo);
         ierr = ncmpi_put_var_int(ncidp, idx2cell_var, idxTo);
 
 	free(x);
@@ -1343,29 +1207,11 @@ int outputGridCoordinates( const string outputFilename) {/*{{{*/
 
 		i++;
 	}
-//	if (!(latEdgeVar = grid.add_var("latEdge", ncDouble, nEdgesDim))) return NC_ERR;
-//	if (!latEdgeVar->put(lat,nEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, latedge_var, lat);
         ierr = ncmpi_put_var_double(ncidp, latedge_var, lat);
-//	if (!(lonEdgeVar = grid.add_var("lonEdge", ncDouble, nEdgesDim))) return NC_ERR;
-//	if (!lonEdgeVar->put(lon,nEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, lonedge_var, lon);
         ierr = ncmpi_put_var_double(ncidp, lonedge_var, lon);
-//	if (!(xEdgeVar = grid.add_var("xEdge", ncDouble, nEdgesDim))) return NC_ERR;
-//	if (!xEdgeVar->put(x,nEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, xedge_var, x);
         ierr = ncmpi_put_var_double(ncidp, xedge_var, x);
-//	if (!(yEdgeVar = grid.add_var("yEdge", ncDouble, nEdgesDim))) return NC_ERR;
-//	if (!yEdgeVar->put(y,nEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, yedge_var, y);
         ierr = ncmpi_put_var_double(ncidp, yedge_var, y);
-//	if (!(zEdgeVar = grid.add_var("zEdge", ncDouble, nEdgesDim))) return NC_ERR;
-//	if (!zEdgeVar->put(z,nEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, zedge_var, z);
         ierr = ncmpi_put_var_double(ncidp, zedge_var, z);
-//	if (!(idx2edgeVar = grid.add_var("indexToEdgeID", ncInt, nEdgesDim))) return NC_ERR;
-//	if (!idx2edgeVar->put(idxTo, nEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_int_all(ncidp, idx2edge_var, idxTo);
         ierr = ncmpi_put_var_int(ncidp, idx2edge_var, idxTo);
 
 
@@ -1395,29 +1241,11 @@ int outputGridCoordinates( const string outputFilename) {/*{{{*/
 
 		i++;
 	}
-//	if (!(latVertexVar = grid.add_var("latVertex", ncDouble, nVerticesDim))) return NC_ERR;
-//	if (!latVertexVar->put(lat,nVertices)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, latvertex_var, lat);
         ierr = ncmpi_put_var_double(ncidp, latvertex_var, lat);
-//	if (!(lonVertexVar = grid.add_var("lonVertex", ncDouble, nVerticesDim))) return NC_ERR;
-//	if (!lonVertexVar->put(lon,nVertices)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, lonvertex_var, lon);
         ierr = ncmpi_put_var_double(ncidp, lonvertex_var, lon);
-//	if (!(xVertexVar = grid.add_var("xVertex", ncDouble, nVerticesDim))) return NC_ERR;
-//	if (!xVertexVar->put(x,nVertices)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, xvertex_var, x);
         ierr = ncmpi_put_var_double(ncidp, xvertex_var, x);
-//	if (!(yVertexVar = grid.add_var("yVertex", ncDouble, nVerticesDim))) return NC_ERR;
-//	if (!yVertexVar->put(y,nVertices)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, yvertex_var, y);
         ierr = ncmpi_put_var_double(ncidp, yvertex_var, y);
-//	if (!(zVertexVar = grid.add_var("zVertex", ncDouble, nVerticesDim))) return NC_ERR;
-//	if (!zVertexVar->put(z,nVertices)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, zvertex_var, z);
         ierr = ncmpi_put_var_double(ncidp, zvertex_var, z);
-//	if (!(idx2vertexVar = grid.add_var("indexToVertexID", ncInt, nVerticesDim))) return NC_ERR;
-//	if (!idx2vertexVar->put(idxTo, nVertices)) return NC_ERR;
-//        ierr = ncmpi_put_var_int_all(ncidp, idx2vertex_var, idxTo);
         ierr = ncmpi_put_var_int(ncidp, idx2vertex_var, idxTo);
 
 	free(x);
@@ -1428,8 +1256,10 @@ int outputGridCoordinates( const string outputFilename) {/*{{{*/
 	free(idxTo);
 
 	return 0;
-}/*}}}*/
-int outputCellConnectivity( const string outputFilename) {/*{{{*/
+}
+
+int outputCellConnectivity(void) 
+{
 	/*****************************************************************
 	 *
 	 * This function writes all of the *OnCell arrays. Including
@@ -1440,30 +1270,13 @@ int outputCellConnectivity( const string outputFilename) {/*{{{*/
 	 *
 	 * ***************************************************************/
 
+        MPI_Offset ncstart[2], nccount[2];
         int ierr;
 
 	// Return this code to the OS in case of failure.
 	static const int NC_ERR = 2;
 	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
-	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Write);
-	
-	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
-	
-	// fetch dimensions
-	NcDim *nCellsDim = grid.get_dim( "nCells" );
-	NcDim *maxEdgesDim = grid.get_dim( "maxEdges" );
-
-	int nCells = nCellsDim->size();
-	int maxEdges = maxEdgesDim->size();
-	int i, j;
-
-	// define nc variables
-	NcVar *cocVar, *nEocVar, *eocVar, *vocVar;
+	size_t i, j;
 
 	int *tmp_arr;
 	
@@ -1485,10 +1298,19 @@ int outputCellConnectivity( const string outputFilename) {/*{{{*/
 		}
 		i++;
 	}
-//	if (!(cocVar = grid.add_var("cellsOnCell", ncInt, nCellsDim, maxEdgesDim))) return NC_ERR;
-//	if (!cocVar->put(tmp_arr,nCells,maxEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_int_all(ncidp, cellsoncell_var, tmp_arr);
-        ierr = ncmpi_put_var_int(ncidp, cellsoncell_var, tmp_arr);
+cerr << "Begin writing cellsOnCell" << endl;
+        ncstart[0] = 0;
+        ncstart[1] = 0;
+        nccount[0] = 22000000;
+        nccount[1] = maxEdges;
+        while (ncstart[0] < (nCells - 22000000)) {
+            ierr = ncmpi_put_vara_int(ncidp, cellsoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nCells-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, cellsoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << "Finish writing cellsOnCell " << ierr << endl;
 
 
 
@@ -1510,10 +1332,19 @@ int outputCellConnectivity( const string outputFilename) {/*{{{*/
 		i++;
 	}
 
-//	if (!(eocVar = grid.add_var("edgesOnCell", ncInt, nCellsDim, maxEdgesDim))) return NC_ERR;
-//	if (!eocVar->put(tmp_arr,nCells,maxEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_int_all(ncidp, edgesoncell_var, tmp_arr);
-        ierr = ncmpi_put_var_int(ncidp, edgesoncell_var, tmp_arr);
+cerr << "Begin writing edgesOnCell" << endl;
+        ncstart[0] = 0;
+        ncstart[1] = 0;
+        nccount[0] = 22000000;
+        nccount[1] = maxEdges;
+        while (ncstart[0] < (nCells - 22000000)) {
+            ierr = ncmpi_put_vara_int(ncidp, edgesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nCells-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, edgesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << "Finish writing edgesOnCell " << ierr << endl;
 
 	// Build and write VOC array 
 	for(i = 0; i < nCells; i++){
@@ -1532,10 +1363,19 @@ int outputCellConnectivity( const string outputFilename) {/*{{{*/
 		i++;
 	}
 
-//	if (!(vocVar = grid.add_var("verticesOnCell", ncInt, nCellsDim, maxEdgesDim))) return NC_ERR;
-//	if (!vocVar->put(tmp_arr,nCells,maxEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_int_all(ncidp, verticesoncell_var, tmp_arr);
-        ierr = ncmpi_put_var_int(ncidp, verticesoncell_var, tmp_arr);
+cerr << "Begin writing verticesOnCell" << endl;
+        ncstart[0] = 0;
+        ncstart[1] = 0;
+        nccount[0] = 22000000;
+        nccount[1] = maxEdges;
+        while (ncstart[0] < (nCells - 22000000)) {
+            ierr = ncmpi_put_vara_int(ncidp, verticesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nCells-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, verticesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << "Finish writing verticesOnCell " << ierr << endl;
 
 	free(tmp_arr);
 
@@ -1548,10 +1388,18 @@ int outputCellConnectivity( const string outputFilename) {/*{{{*/
 		i++;
 	}
 
-//	if (!(nEocVar = grid.add_var("nEdgesOnCell", ncInt, nCellsDim))) return NC_ERR;
-//	if (!nEocVar->put(tmp_arr,nCells)) return NC_ERR;
-//        ierr = ncmpi_put_var_int_all(ncidp, nedgesoncell_var, tmp_arr);
-        ierr = ncmpi_put_var_int(ncidp, nedgesoncell_var, tmp_arr);
+cerr << "Begin writing nEdgesOnCell" << endl;
+//        ierr = ncmpi_put_var_int(ncidp, nedgesoncell_var, tmp_arr);
+        ncstart[0] = 0;
+        nccount[0] = 22000000;
+        while (ncstart[0] < (nCells - 22000000)) {
+            ierr = ncmpi_put_vara_int(ncidp, nedgesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nCells-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, nedgesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]]);
+cerr << "Finish writing nEdgesOnCell " << ierr << endl;
 
 
 	verticesOnCell.clear();
@@ -1560,8 +1408,10 @@ int outputCellConnectivity( const string outputFilename) {/*{{{*/
 	free(tmp_arr);
 
 	return 0;
-}/*}}}*/
-int outputEdgeConnectivity( const string outputFilename) {/*{{{*/
+}
+
+int outputEdgeConnectivity(void) 
+{
 	/*****************************************************************
 	 *
 	 * This function writes all of the *OnEdge arrays. Including
@@ -1577,45 +1427,15 @@ int outputEdgeConnectivity( const string outputFilename) {/*{{{*/
 	// Return this code to the OS in case of failure.
 	static const int NC_ERR = 2;
 	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
-	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Write);
-
-
-fprintf(stderr,"Point A debug\n");
-	
-	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
-	
-	// fetch dimensions
-	NcDim *nEdgesDim = grid.get_dim( "nEdges" );
-	NcDim *maxEdges2Dim = grid.get_dim( "maxEdges2" );
-	NcDim *vertexDegreeDim = grid.get_dim( "vertexDegree" );
-	NcDim *twoDim = grid.get_dim( "TWO" );
-
-fprintf(stderr,"Point B debug\n");
-
-	// define nc variables
-	NcVar *coeVar, *nEoeVar, *eoeVar, *voeVar, *bdryEdgeVar;
-
-	int nEdges = nEdgesDim->size();
-	int maxEdges2 = maxEdges2Dim->size();
-	int vertexDegree = vertexDegreeDim->size();
-	int two = twoDim->size();
-	int i, j;
+	size_t i, j;
  
         MPI_Offset ncstart[2], nccount[2];
 
 	int *tmp_arr;
 
-fprintf(stderr,"Point C debug\n");
 
 	// Build and write EOE array
-	tmp_arr = new int[(long)nEdges*(long)maxEdges2];
-
-fprintf(stderr,"Point D debug\n");
+	tmp_arr = new int[nEdges*maxEdges2];
 
 	for(i = 0; i < nEdges; i++){
 		for(j = 0; j < maxEdges2; j++){
@@ -1623,7 +1443,6 @@ fprintf(stderr,"Point D debug\n");
 		}
 	}
 
-fprintf(stderr,"Point E debug\n");
 
 	i = 0;
 	for(vec_int_itr = edgesOnEdge.begin(); vec_int_itr != edgesOnEdge.end(); ++vec_int_itr){
@@ -1636,55 +1455,54 @@ fprintf(stderr,"Point E debug\n");
 		i++;
 	}
 
-fprintf(stderr,"Point F debug\n");
-
-//	if (!(eoeVar = grid.add_var("edgesOnEdge", ncInt, nEdgesDim, maxEdges2Dim))) return NC_ERR;
-fprintf(stderr,"Point G debug\n");
-//	if (!eoeVar->put(tmp_arr,nEdges,maxEdges2)) return NC_ERR;
-fprintf(stderr,"Writing edgesOnEdge\n");
-//        ierr = ncmpi_put_var_int_all(ncidp, edgesonedge_var, tmp_arr);
-//        ierr = ncmpi_put_var_int(ncidp, edgesonedge_var, tmp_arr);
-
+cerr << "Begin writing edgesOnEdge" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
         nccount[0] = 22000000;
         nccount[1] = maxEdges2;
         while (ncstart[0] < (nEdges - 22000000)) {
             ierr = ncmpi_put_vara_int(ncidp, edgesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << ierr << endl;
             ncstart[0] = ncstart[0] + 22000000;
         }
         nccount[0] = nEdges-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, edgesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
-
-fprintf(stderr,"Wrote edgesOnEdge\n");
+cerr << "Finish writing edgesOnEdge " << ierr << endl;
 
 
 	free(tmp_arr);
 
 	// Build and write COE array
-	tmp_arr = new int[nEdges*two];
+	tmp_arr = new int[nEdges*TWO];
 	for(i = 0; i < nEdges; i++){
-		for(j = 0; j < two; j++){
-			tmp_arr[i*two + j] = 0;
+		for(j = 0; j < TWO; j++){
+			tmp_arr[i*TWO + j] = 0;
 		}
 	}
 	i = 0;
 	for(vec_int_itr = cellsOnEdge.begin(); vec_int_itr != cellsOnEdge.end(); ++vec_int_itr){
 		j = 0;
 		for(int_itr = (*vec_int_itr).begin(); int_itr != (*vec_int_itr).end(); ++int_itr){
-			tmp_arr[i*two + j] = (*int_itr) + 1;	
+			tmp_arr[i*TWO + j] = (*int_itr) + 1;	
 			j++;
 		}
 
 		i++;
 	}
 
-//	if (!(coeVar = grid.add_var("cellsOnEdge", ncInt, nEdgesDim, twoDim))) return NC_ERR;
-//	if (!coeVar->put(tmp_arr,nEdges,two)) return NC_ERR;
-fprintf(stderr,"Writing cellsOnEdge\n");
-//        ierr = ncmpi_put_var_int_all(ncidp, cellsonedge_var, tmp_arr);
-        ierr = ncmpi_put_var_int(ncidp, cellsonedge_var, tmp_arr);
-fprintf(stderr,"Wrote cellsOnEdge\n");
+cerr << "Begin writing cellsOnEdge" << endl;
+        ncstart[0] = 0;
+        ncstart[1] = 0;
+        nccount[0] = 22000000;
+        nccount[1] = TWO;
+        while (ncstart[0] < (nEdges - 22000000)) {
+            ierr = ncmpi_put_vara_int(ncidp, cellsonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nEdges-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, cellsonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << "Finish writing cellsOnEdge " << ierr << endl;
 
 
 	// Build VOE array
@@ -1692,20 +1510,26 @@ fprintf(stderr,"Wrote cellsOnEdge\n");
 	for(vec_int_itr = verticesOnEdge.begin(); vec_int_itr != verticesOnEdge.end(); ++vec_int_itr){
 		j = 0;
 		for(int_itr = (*vec_int_itr).begin(); int_itr != (*vec_int_itr).end(); ++int_itr){
-			tmp_arr[i*two + j] = (*int_itr) + 1;	
+			tmp_arr[i*TWO + j] = (*int_itr) + 1;	
 			j++;
 		}
 
 		i++;
 	}
 
-//	if (!(voeVar = grid.add_var("verticesOnEdge", ncInt, nEdgesDim, twoDim))) return NC_ERR;
-//	if (!voeVar->put(tmp_arr,nEdges,two)) return NC_ERR;
-fprintf(stderr,"Writing verticesOnEdge\n");
-//        ierr = ncmpi_put_var_int_all(ncidp, verticesonedge_var, tmp_arr);
-        ierr = ncmpi_put_var_int(ncidp, verticesonedge_var, tmp_arr);
-fprintf(stderr,"Wrote verticesOnEdge\n");
-
+cerr << "Begin writing verticesOnEdge" << endl;
+        ncstart[0] = 0;
+        ncstart[1] = 0;
+        nccount[0] = 22000000;
+        nccount[1] = TWO;
+        while (ncstart[0] < (nEdges - 22000000)) {
+            ierr = ncmpi_put_vara_int(ncidp, verticesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nEdges-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, verticesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << "Finish writing verticesOnEdge " << ierr << endl;
 
 	free(tmp_arr);
 
@@ -1717,14 +1541,21 @@ fprintf(stderr,"Wrote verticesOnEdge\n");
 		i++;
 	}
 
-//	if (!(nEoeVar = grid.add_var("nEdgesOnEdge", ncInt, nEdgesDim))) return NC_ERR;
-//	if (!nEoeVar->put(tmp_arr,nEdges)) return NC_ERR;
-fprintf(stderr,"Writing nEdgesOnEdge\n");
-//        ierr = ncmpi_put_var_int_all(ncidp, nedgesonedge_var, tmp_arr);
-        ierr = ncmpi_put_var_int(ncidp, nedgesonedge_var, tmp_arr);
-fprintf(stderr,"Wrote nEdgesOnEdge\n");
+cerr << "Begin writing nEdgesOnEdge" << endl;
+        ncstart[0] = 0;
+        nccount[0] = 22000000;
+        while (ncstart[0] < (nEdges - 22000000)) {
+            ierr = ncmpi_put_vara_int(ncidp, nedgesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nEdges-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, nedgesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]]);
+cerr << "Finish writing nEdgesOnEdge " << ierr << endl;
 
 
+// MGD can probably cut this code...
+#if 0
 	// Build and write bdryEdge array
 	i = 0;
 	for(vec_int_itr = cellsOnEdge.begin(); vec_int_itr != cellsOnEdge.end(); ++vec_int_itr){
@@ -1734,18 +1565,18 @@ fprintf(stderr,"Wrote nEdgesOnEdge\n");
 			tmp_arr[i] = 0;
 		}
 	}
+#endif
 
-//	if (!(bdryEdgeVar = grid.add_var("boundaryEdge",ncInt, nEdgesDim))) return NC_ERR;
-//	if (!bdryEdgeVar->put(tmp_arr,nEdges)) return NC_ERR;
 	free(tmp_arr);
 
 	cellsOnEdge.clear();
-//	verticesOnEdge.clear(); // Needed for Initial conditions.
 	edgesOnEdge.clear();
 	
 	return 0;
-}/*}}}*/
-int outputVertexConnectivity( const string outputFilename) {/*{{{*/
+}
+
+int outputVertexConnectivity(void) 
+{
 	/*****************************************************************
 	 *
 	 * This function writes all of the *OnVertex arrays. Including
@@ -1754,32 +1585,14 @@ int outputVertexConnectivity( const string outputFilename) {/*{{{*/
 	 *
 	 * ***************************************************************/
 
+        MPI_Offset ncstart[2], nccount[2];
+
         int ierr;
 
 	// Return this code to the OS in case of failure.
 	static const int NC_ERR = 2;
 	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
-	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Write);
-	
-	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
-	
-	// fetch dimensions
-	NcDim *nVerticesDim = grid.get_dim( "nVertices" );
-	NcDim *vertexDegreeDim = grid.get_dim( "vertexDegree" );
-
-	// define nc variables
-	NcVar *covVar, *eovVar, *bdryVertVar;
-
-fprintf(stderr,"Beginning vertex connectivity\n");
-
-	int nVertices = nVerticesDim->size();
-	int vertexDegree = vertexDegreeDim->size();
-	int i, j;
+	size_t i, j;
 
 	int *tmp_arr;
 
@@ -1803,11 +1616,19 @@ fprintf(stderr,"Beginning vertex connectivity\n");
 	}
 
 
-//	if (!(covVar = grid.add_var("cellsOnVertex", ncInt, nVerticesDim, vertexDegreeDim))) return NC_ERR;
-//	if (!covVar->put(tmp_arr,nVertices,vertexDegree)) return NC_ERR;
-//        ierr = ncmpi_put_var_int_all(ncidp, cellsonvertex_var, tmp_arr);
-        ierr = ncmpi_put_var_int(ncidp, cellsonvertex_var, tmp_arr);
-
+cerr << "Begin writing cellsOnVertex" << endl;
+        ncstart[0] = 0;
+        ncstart[1] = 0;
+        nccount[0] = 22000000;
+        nccount[1] = vertexDegree;
+        while (ncstart[0] < (nVertices - 22000000)) {
+            ierr = ncmpi_put_vara_int(ncidp, cellsonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nVertices-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, cellsonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << "Finish writing cellsOnVertex " << ierr << endl;
 
 
 	// Build and write EOV array
@@ -1826,14 +1647,25 @@ fprintf(stderr,"Beginning vertex connectivity\n");
 
 		i++;
 	}
-//	if (!(eovVar = grid.add_var("edgesOnVertex", ncInt, nVerticesDim, vertexDegreeDim))) return NC_ERR;
-//	if (!eovVar->put(tmp_arr,nVertices,vertexDegree)) return NC_ERR;
-//        ierr = ncmpi_put_var_int_all(ncidp, edgesonvertex_var, tmp_arr);
-        ierr = ncmpi_put_var_int(ncidp, edgesonvertex_var, tmp_arr);
+cerr << "Begin writing edgesOnVertex" << endl;
+        ncstart[0] = 0;
+        ncstart[1] = 0;
+        nccount[0] = 22000000;
+        nccount[1] = vertexDegree;
+        while (ncstart[0] < (nVertices - 22000000)) {
+            ierr = ncmpi_put_vara_int(ncidp, edgesonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nVertices-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, edgesonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << "Finish writing edgesOnVertex " << ierr << endl;
 
 
 	free(tmp_arr);
 
+// MGD can probably cut this code...
+#if 0
 	// Build and write bdryVert array
 	tmp_arr = new int[nVertices];
 	
@@ -1847,71 +1679,54 @@ fprintf(stderr,"Beginning vertex connectivity\n");
 		i++;
 	}
 
-//	if (!(bdryVertVar = grid.add_var("boundaryVertex", ncInt, nVerticesDim))) return NC_ERR;
-//	if (!bdryVertVar->put(tmp_arr, nVertices)) return NC_ERR;
-
 	free(tmp_arr);
+#endif
 
 	cellsOnVertex.clear();
 	edgesOnVertex.clear();
 
 	return 0;
-}/*}}}*/
-int outputCellParameters( const string outputFilename) {/*{{{*/
+}
+
+int outputCellParameters(void) 
+{
 	/*********************************************************
 	 *
 	 * This function writes all cell parameters, including
 	 * 	areaCell
-	 * 	fCell
 	 *
 	 * *******************************************************/
 
+        MPI_Offset ncstart[1], nccount[1];
         int ierr;
 
 	// Return this code to the OS in case of failure.
 	static const int NC_ERR = 2;
 	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
-	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Write);
-	
-	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
-	
-	// fetch dimensions
-	NcDim *nCellsDim = grid.get_dim( "nCells" );
+	size_t i, j;
 
-	// define nc variables
-	NcVar *fCellVar;
-	NcVar *areacVar;
+cerr << "Begin writing areaCell" << endl;
+        ncstart[0] = 0;
+        nccount[0] = 22000000;
+        while (ncstart[0] < (nCells - 22000000)) {
+            ierr = ncmpi_put_vara_double(ncidp, areacell_var, ncstart, nccount, &areaCell[ncstart[0]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nCells-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, areacell_var, ncstart, nccount, &areaCell[ncstart[0]]);
+cerr << "Finish writing areaCell " << ierr << endl;
 
-	int nCells = nCellsDim->size();
-	int i, j;
-
-//	if (!(fCellVar = grid.add_var("fCell", ncDouble, nCellsDim))) return NC_ERR;
-//	if (!fCellVar->put(&fCell[0],nCells)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, fcell_var, &fCell[0]);
-        ierr = ncmpi_put_var_double(ncidp, fcell_var, &fCell[0]);
-
-
-//	if (!(areacVar = grid.add_var("areaCell", ncDouble, nCellsDim))) return NC_ERR;
-//	if (!areacVar->put(&areaCell[0],nCells)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, areacell_var, &areaCell[0]);
-        ierr = ncmpi_put_var_double(ncidp, areacell_var, &areaCell[0]);
-
-
-	fCell.clear();
 	areaCell.clear();
 
 	return 0;
-}/*}}}*/
-int outputEdgeParameters( const string outputFilename) {/*{{{*/
+}
+
+int outputEdgeParameters(void) 
+{
 	/*********************************************************
 	 *
 	 * This function writes all grid parameters, including
-	 * 	fEdge
 	 *	angleEdge
 	 *	dcEdge
 	 *	dvEdge
@@ -1924,64 +1739,57 @@ int outputEdgeParameters( const string outputFilename) {/*{{{*/
 	// Return this code to the OS in case of failure.
 	static const int NC_ERR = 2;
 	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
-	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Write);
-	
-	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
-	
-	// fetch dimensions
-	NcDim *nEdgesDim = grid.get_dim( "nEdges" );
-	NcDim *maxEdges2Dim = grid.get_dim( "maxEdges2" );
-
-	// define nc variables
-	NcVar *fEdgeVar;
-	NcVar *angleVar;
-	NcVar *kareaVar, *dcEdgeVar, *dvEdgeVar;
-	NcVar *woeVar;
-
-	int nEdges = nEdgesDim->size();
-	int maxEdges2 = maxEdges2Dim->size();
-	int i, j;
+	size_t i, j;
 
         MPI_Offset ncstart[2], nccount[2];
 
 	double *tmp_arr;
 
 
-	// Build and write fEdges
-//	if (!(fEdgeVar = grid.add_var("fEdge", ncDouble, nEdgesDim))) return NC_ERR;
-//	if (!fEdgeVar->put(&fEdge[0],nEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, fedge_var, &fEdge[0]);
-        ierr = ncmpi_put_var_double(ncidp, fedge_var, &fEdge[0]);
-
-
 	//Build and write angleEdge
-//	if (!(angleVar = grid.add_var("angleEdge", ncDouble, nEdgesDim))) return NC_ERR;
-//	if (!angleVar->put(&angleEdge[0],nEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, angleedge_var, &angleEdge[0]);
-        ierr = ncmpi_put_var_double(ncidp, angleedge_var, &angleEdge[0]);
+cerr << "Begin writing angleEdge" << endl;
+        ncstart[0] = 0;
+        nccount[0] = 22000000;
+        while (ncstart[0] < (nEdges - 22000000)) {
+            ierr = ncmpi_put_vara_double(ncidp, angleedge_var, ncstart, nccount, &angleEdge[ncstart[0]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nEdges-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, angleedge_var, ncstart, nccount, &angleEdge[ncstart[0]]);
+cerr << "Finish writing angleEdge " << ierr << endl;
 
 
 	//Build and write dcEdge
-//	if (!(dcEdgeVar = grid.add_var("dcEdge", ncDouble, nEdgesDim))) return NC_ERR;
-//	if (!dcEdgeVar->put(&dcEdge[0],nEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, dcedge_var, &dcEdge[0]);
-        ierr = ncmpi_put_var_double(ncidp, dcedge_var, &dcEdge[0]);
+cerr << "Begin writing dcEdge" << endl;
+        ncstart[0] = 0;
+        nccount[0] = 22000000;
+        while (ncstart[0] < (nEdges - 22000000)) {
+            ierr = ncmpi_put_vara_double(ncidp, dcedge_var, ncstart, nccount, &dcEdge[ncstart[0]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nEdges-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, dcedge_var, ncstart, nccount, &dcEdge[ncstart[0]]);
+cerr << "Finish writing dcEdge " << ierr << endl;
 
 
 	//Build and write dvEdge
-//	if (!(dvEdgeVar = grid.add_var("dvEdge", ncDouble, nEdgesDim))) return NC_ERR;
-//	if (!dvEdgeVar->put(&dvEdge[0],nEdges)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, dvedge_var, &dvEdge[0]);
-        ierr = ncmpi_put_var_double(ncidp, dvedge_var, &dvEdge[0]);
+cerr << "Begin writing dvEdge" << endl;
+        ncstart[0] = 0;
+        nccount[0] = 22000000;
+        while (ncstart[0] < (nEdges - 22000000)) {
+            ierr = ncmpi_put_vara_double(ncidp, dvedge_var, ncstart, nccount, &dvEdge[ncstart[0]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nEdges-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, dvedge_var, ncstart, nccount, &dvEdge[ncstart[0]]);
+cerr << "Finish writing dvEdge " << ierr << endl;
 
 
 	//Build and write weightsOnEdge
-	tmp_arr = new double[(long)nEdges*(long)maxEdges2];
+	tmp_arr = new double[nEdges*maxEdges2];
 
 	i = 0;
 	for(vec_dbl_itr = weightsOnEdge.begin(); vec_dbl_itr != weightsOnEdge.end(); ++vec_dbl_itr){
@@ -1997,37 +1805,36 @@ int outputEdgeParameters( const string outputFilename) {/*{{{*/
 		i++;
 	}
 
-//	if (!(woeVar = grid.add_var("weightsOnEdge", ncDouble, nEdgesDim, maxEdges2Dim))) return NC_ERR;
-//	if (!woeVar->put(tmp_arr,nEdges,maxEdges2)) return NC_ERR;
-//        ierr = ncmpi_put_var_double_all(ncidp, weightsonedge_var, tmp_arr);
-//        ierr = ncmpi_put_var_double(ncidp, weightsonedge_var, tmp_arr);
+cerr << "Begin writing weightsOnEdge" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
         nccount[0] = 11000000;
         nccount[1] = maxEdges2;
         while (ncstart[0] < (nEdges - 11000000)) {
             ierr = ncmpi_put_vara_double(ncidp, weightsonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << ierr << endl;
             ncstart[0] = ncstart[0] + 11000000;
         }
         nccount[0] = nEdges-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, weightsonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
+cerr << "Finish writing weightsOnEdge " << ierr << endl;
 
 	free(tmp_arr);
 
-	fEdge.clear();
 	angleEdge.clear();
 	dcEdge.clear();
 	weightsOnEdge.clear();
 
 	return 0;
-}/*}}}*/
-int outputVertexParameters( const string outputFilename) {/*{{{*/
+}
+
+int outputVertexParameters(void) 
+{
 	/*********************************************************
 	 *
 	 * This function writes all vertex parameters, including
 	 * 	areaTriangle
 	 * 	kiteAreasOnVertex
-	 * 	fVertex
 	 *
 	 * *******************************************************/
 
@@ -2036,38 +1843,16 @@ int outputVertexParameters( const string outputFilename) {/*{{{*/
 	// Return this code to the OS in case of failure.
 	static const int NC_ERR = 2;
 	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
-	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Write);
-
-        ofstream fout;
         size_t rets;
         int fd;
 	
-	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
-	
-	// fetch dimensions
-	NcDim *nVerticesDim = grid.get_dim( "nVertices" );
-	NcDim *vertexDegreeDim = grid.get_dim( "vertexDegree" );
-
-	// define nc variables
-	NcVar *fVertexVar;
-	NcVar *areatVar;
-	NcVar *kareaVar;
-
         MPI_Offset ncstart[2], nccount[2];
 
-	int nVertices = nVerticesDim->size();
-	int vertexDegree = vertexDegreeDim->size();
-	int i, j;
+	size_t i, j;
 
 	double *tmp_arr;
 
 	// Build and write kiteAreasOnVertex
-fprintf(stdout,"Allocating tmp_arr with %i * %i = %i doubles\n", nVertices, vertexDegree, nVertices*vertexDegree);
 	tmp_arr = new double[nVertices*vertexDegree];
 	i = 0;
 	for(vec_dbl_itr = kiteAreasOnVertex.begin(); vec_dbl_itr != kiteAreasOnVertex.end(); ++vec_dbl_itr){
@@ -2079,215 +1864,60 @@ fprintf(stdout,"Allocating tmp_arr with %i * %i = %i doubles\n", nVertices, vert
 		i++;
 	}
 
-//	if (!(kareaVar = grid.add_var("kiteAreasOnVertex", ncDouble, nVerticesDim, vertexDegreeDim))) return NC_ERR;
-//	if (!kareaVar->put(tmp_arr,nVertices,vertexDegree)) return NC_ERR;
-fprintf(stderr,"Begin writing kiteAreasOnVertex\n");
-fprintf(stdout,"Begin writing kiteAreasOnVertex\n");
-for(i=0; i<1000; i++)
-    cout << tmp_arr[i] << endl;
 
-fd = open("kiteAreasOnVertex.dat",O_WRONLY|O_CREAT|O_TRUNC);
-rets = write(fd, (void *)tmp_arr, sizeof(double)*nVertices*vertexDegree); 
-fprintf(stdout,"Wrote %lu bytes to kiteAreasOnVertex.dat\n", rets);
-ierr = close(fd);
-
-//        ierr = ncmpi_put_var_double_all(ncidp, kiteareasonvertex_var, tmp_arr);
-//        ierr = ncmpi_put_var_double(ncidp, kiteareasonvertex_var, tmp_arr);
+cerr << "Begin writing kiteAreasOnVertex" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
-        nccount[0] = 44000000;
+        nccount[0] = 22000000;
         nccount[1] = vertexDegree;
-        while (ncstart[0] < (nVertices - 44000000)) {
+        while (ncstart[0] < (nVertices - 22000000)) {
             ierr = ncmpi_put_vara_double(ncidp, kiteareasonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
-            ncstart[0] = ncstart[0] + 44000000;
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
         }
         nccount[0] = nVertices-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, kiteareasonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
-
-
-
-//        fout.open("kiteAreasOnVertex.dat");
-//        fout.precision(16);
-//        fout.setf(ios::fixed,ios::floatfield);
-//        for(i=0; i<nVertices*vertexDegree; i++)
-//           fout << tmp_arr[i] << endl;
-//        fout.close();
-fprintf(stderr,"Finish writing kiteAreasOnVertex %i\n", ierr);
-fprintf(stdout,"Finish writing kiteAreasOnVertex %i\n", ierr);
+cerr << "Finish writing kiteAreasOnVertex " << ierr << endl;
 
 
 	free(tmp_arr);
 
 
-	// Build and write fVertex
-//	if (!(fVertexVar = grid.add_var("fVertex", ncDouble, nVerticesDim))) return NC_ERR;
-//	if (!fVertexVar->put(&fVertex[0],nVertices)) return NC_ERR;
-
-fprintf(stderr,"Begin writing fVertex\n");
-fprintf(stdout,"Begin writing fVertex\n");
-//        ierr = ncmpi_put_var_double_all(ncidp, fvertex_var, &fVertex[0]);
-        ierr = ncmpi_put_var_double(ncidp, fvertex_var, &fVertex[0]);
-fprintf(stderr,"Finish writing fVertex %i\n", ierr);
-fprintf(stdout,"Finish writing fVertex %i\n", ierr);
-
-
 	// Build and write areaTriangle
-//	if (!(areatVar = grid.add_var("areaTriangle", ncDouble, nVerticesDim))) return NC_ERR;
-//	if (!areatVar->put(&areaTriangle[0],nVertices)) return NC_ERR;
-fprintf(stderr,"Begin writing areaTriangle\n");
-fprintf(stdout,"Begin writing areaTriangle\n");
-//        ierr = ncmpi_put_var_double_all(ncidp, areatriangle_var, &areaTriangle[0]);
-        ierr = ncmpi_put_var_double(ncidp, areatriangle_var, &areaTriangle[0]);
-fprintf(stderr,"Finish writing areaTriangle %i\n", ierr);
-fprintf(stdout,"Finish writing areaTriangle %i\n", ierr);
+cerr << "Begin writing areaTriangle" << endl;
+        ncstart[0] = 0;
+        nccount[0] = 22000000;
+        while (ncstart[0] < (nVertices - 22000000)) {
+            ierr = ncmpi_put_vara_double(ncidp, areatriangle_var, ncstart, nccount, &areaTriangle[ncstart[0]]);
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nVertices-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, areatriangle_var, ncstart, nccount, &areaTriangle[ncstart[0]]);
+cerr << "Finish writing areaTriangle " << ierr << endl;
 
-	fVertex.clear();
 	areaTriangle.clear();
 	kiteAreasOnVertex.clear();
 
 	return 0;
-}/*}}}*/
-int outputInitialConditions( const string outputFilename) {/*{{{*/
-	/***************************************************************************
-	 *
-	 * This function writes all initial conditions to the grid file, including
-	 * (required)
-	 * 		h_s
-	 * 		u
-	 * 		h
-	 * 		tracers
-	 *
-	 * Any extra initial conditions can be written as needed, or added to tracers.
-	 *
-	 * *************************************************************************/
-	// Return this code to the OS in case of failure.
-	static const int NC_ERR = 2;
-	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
-	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Write);
-	
-	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
+}
 
-	cout << "******************************************* " << endl;
-	cout << "* Using default initial conditions." << endl << "* For more fine grained control, edit the function outputInitialConditions." << endl;
-	cout << "******************************************* " << endl;
-	
-	// fetch dimensions
-	NcDim *nCellsDim = grid.get_dim( "nCells" );
-	NcDim *nEdgesDim = grid.get_dim( "nEdges" );
-	NcDim *nVerticesDim = grid.get_dim( "nVertices" );
-	NcDim *nVertLevelsDim = grid.get_dim( "nVertLevels" );
-	NcDim *nTracersDim = grid.get_dim( "nTracers" );
-	NcDim *timeDim = grid.get_dim( "Time" );
-
-	// define nc variables
-	NcVar *uVar, *usrcVar, *hVar, *hsVar, *tracerVar;
-
-	int nCells = nCellsDim->size();
-	int nEdges = nEdgesDim->size();
-	int nVertices = nVerticesDim->size();
-	int nVertLevels = nVertLevelsDim->size();
-	int nTracers = nTracersDim->size();
-	int vert1, vert2;
-	int i, j, k;
-
-	double *tmp_arr;
-	double *tmp_arr2;
-	double h_s_val;
-
-	//Build and write h and h_s
-	tmp_arr = new double[nCells]; // h_s
-	tmp_arr2 = new double[nCells*nVertLevels]; // h
-
-	for(i = 0; i < nCells; i++){
-		h_s_val = 0.0;
-		for(j = 0; j < nVertLevels; j++){
-			tmp_arr2[i*nVertLevels + j] = 1000.0;
-			h_s_val -= tmp_arr2[i*nVertLevels + j];
-		}
-		tmp_arr[i] = h_s_val;
-	}
-
-//	if (!(hsVar = grid.add_var("h_s", ncDouble, nCellsDim))) return NC_ERR;
-//	if (!hsVar->put(tmp_arr,nCells)) return NC_ERR;
-//	if (!(hVar = grid.add_var("h", ncDouble, timeDim, nCellsDim, nVertLevelsDim))) return NC_ERR;
-//	if (!hVar->put(tmp_arr2,1,nCells,nVertLevels)) return NC_ERR;
-	free(tmp_arr);
-	free(tmp_arr2);
-
-	//Build and write u and u_src
-	tmp_arr = new double[nEdges*nVertLevels]; // u
-	tmp_arr2 = new double[nEdges*nVertLevels]; // u_src
-
-	for(i = 0; i < nEdges; i++){
-		for(j = 0; j < nVertLevels; j++){
-			vert1 = verticesOnEdge.at(i).at(0);
-			vert2 = verticesOnEdge.at(i).at(1);
-			if(j == 0){
-				// Setup solid body rotation
-				tmp_arr[i*nVertLevels + j] = (ccenters.at(vert2).z - ccenters.at(vert1).z) / dvEdge.at(i);
-				tmp_arr2[i*nVertLevels + j] = (ccenters.at(vert2).z - ccenters.at(vert1).z) / dvEdge.at(i);
-			} else {
-				tmp_arr2[i*nVertLevels + j] = 0.0;
-			}
-		}
-	}
-
-//	if (!(uVar = grid.add_var("u", ncDouble, timeDim, nEdgesDim, nVertLevelsDim))) return NC_ERR;
-//	if (!uVar->put(tmp_arr,1,nEdges,nVertLevels)) return NC_ERR;
-//	if (!(usrcVar = grid.add_var("u_src", ncDouble, nEdgesDim, nVertLevelsDim))) return NC_ERR;
-//	if (!usrcVar->put(tmp_arr2,nEdges,nVertLevels)) return NC_ERR;
-	free(tmp_arr);
-	free(tmp_arr2);
-
-	//Build and write tracers
-	tmp_arr = new double[nCells*nVertLevels*nTracers];
-	for(i = 0; i < nCells; i++){
-		for(j = 0; j < nVertLevels; j++){
-			for(k = 0; k < nTracers; k++){
-				tmp_arr[i*nVertLevels + j*nTracers + k] = 0.0;
-			}
-		}
-	}
-
-//	if (!(tracerVar = grid.add_var("tracers", ncDouble, timeDim, nCellsDim, nVertLevelsDim, nTracersDim))) return NC_ERR;
-//	if (!tracerVar->put(tmp_arr,1,nCells,nVertLevels,nTracers)) return NC_ERR;
-	free(tmp_arr);
-
-	return 0;
-}/*}}}*/
-int outputMeshDensity( const string outputFilename) {/*{{{*/
+int outputMeshDensity(void) 
+{
 	/***************************************************************************
 	 *
 	 * This function writes the meshDensity variable. Read in from the file SaveDensity
 	 *
 	 * *************************************************************************/
 
+        MPI_Offset ncstart[1], nccount[1];
+
         int ierr;
 
 	// Return this code to the OS in case of failure.
 	static const int NC_ERR = 2;
 	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
-	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Write);
-	
-	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
-
-	// fetch dimensions
-	NcDim *nCellsDim = grid.get_dim( "nCells" );
-
-	NcVar *cDensVar;
-
-	int nCells = nCellsDim->size();
-	int i, j, k;
+	size_t i, j, k;
 	int junk_int;
 	double junk_dbl;
 
@@ -2298,12 +1928,13 @@ int outputMeshDensity( const string outputFilename) {/*{{{*/
 	dbl_tmp_arr.resize(nCells);
 	ifstream celldens_in("SaveDensity");
 
-	if(!celldens_in){
-		for(i = 0 ; i < nCells; i++){
-			dbl_tmp_arr.at(i) = 1;
+	if (!celldens_in) {
+		for(i = 0 ; i < nCells; i++) {
+			dbl_tmp_arr.at(i) = 1.0;
 		}
-	} else {
-		for(i = 0; i < nCells; i++){
+	} 
+	else {
+		for(i = 0; i < nCells; i++) {
 			celldens_in >> dbl_tmp_arr.at(i);
 			
 		}
@@ -2311,171 +1942,35 @@ int outputMeshDensity( const string outputFilename) {/*{{{*/
 
 	celldens_in.close();
 
-//	if (!(cDensVar = grid.add_var("meshDensity", ncDouble, nCellsDim))) return NC_ERR;
-//	if (!cDensVar->put(&dbl_tmp_arr.at(0),nCells)) return NC_ERR;
-
-fprintf(stderr,"Begin writing meshDensity\n");
-fprintf(stdout,"Begin writing meshDensity\n");
-//        ierr = ncmpi_put_var_double_all(ncidp, meshdensity_var, &dbl_tmp_arr.at(0));
-        ierr = ncmpi_put_var_double(ncidp, meshdensity_var, &dbl_tmp_arr.at(0));
-fprintf(stderr,"Finish writing meshDensity %i\n", ierr);
-fprintf(stdout,"Finish writing meshDensity %i\n", ierr);
+cerr << "Begin writing meshDensity" << endl;
+        ncstart[0] = 0;
+        nccount[0] = 22000000;
+        while (ncstart[0] < (nCells - 22000000)) {
+            ierr = ncmpi_put_vara_double(ncidp, meshdensity_var, ncstart, nccount, &dbl_tmp_arr.at(ncstart[0]));
+cerr << ierr << endl;
+            ncstart[0] = ncstart[0] + 22000000;
+        }
+        nccount[0] = nCells-ncstart[0];
+        if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, meshdensity_var, ncstart, nccount, &dbl_tmp_arr.at(ncstart[0]));
+cerr << "Finish writing meshDensity " << ierr << endl;
 
         ierr = ncmpi_end_indep_data(ncidp);
 
-fprintf(stderr,"Begin closing file\n");
-fprintf(stdout,"Begin closing file\n");
         ierr = ncmpi_close(ncidp);
-fprintf(stderr,"Finish closing file %i\n", ierr);
-fprintf(stdout,"Finish closing file %i\n", ierr);
 
 	return 0;
-}/*}}}*/
-int outputVordrawArrays( const string outputFilename) {/*{{{*/
-	/***************************************************************************
-	 *
-	 * This function writes all of the arrays for Vordraw compatibilty to the grid file, including
-	 * 	cellProxy
-	 * 	cellDensity
-	 * 	vertexProxy
-	 * 	vertexDensity
-	 * 	nBorder
-	 * 	xBorder
-	 * 	yBorder
-	 * 	zBorder
-	 *
-	 * *************************************************************************/
-	// Return this code to the OS in case of failure.
-	static const int NC_ERR = 2;
-	
-	// set error behaviour (matches fortran behaviour)
-	NcError err(NcError::verbose_nonfatal);
-	
-	// open the scvtmesh file
-	NcFile grid(outputFilename.c_str(), NcFile::Write);
-	
-	// check to see if the file was opened
-	if(!grid.is_valid()) return NC_ERR;
+}
 
-	// fetch dimensions
-	NcDim *nCellsDim = grid.get_dim( "nCells" );
-	NcDim *nVerticesDim = grid.get_dim( "nVertices" );
-
-	NcDim *nBorderDim;
-	if (!(nBorderDim =		grid.add_dim(	"nBorder",		1)			)) return NC_ERR;
-
-	// define nc variables
-	NcVar *cDensVar, *cProxyVar, *vDensVar, *vProxyVar;
-	NcVar *xBordVar, *yBordVar, *zBordVar;
-
-	int nCells = nCellsDim->size();
-	int nVertices = nVerticesDim->size();
-	int nBorder = nBorderDim->size();
-	int i, j, k;
-	int junk_int;
-	double junk_dbl;
-
-	vector<double> dbl_tmp_arr;
-	vector<int> int_tmp_arr;
-	vector<double> xBorder, yBorder, zBorder;
-
-
-	//Build and write cellProxy and cellDens
-	int_tmp_arr.resize(nCells);
-	dbl_tmp_arr.resize(nCells);
-	ifstream cellproxy_in("SaveCellProxy");
-	ifstream celldens_in("SaveCellDensity");
-	if(!cellproxy_in){
-		for(i = 0 ; i < nCells; i++){
-			int_tmp_arr.at(i) = 1;
-		}
-	} else {
-		for(i = 0; i < nCells; i++){
-			cellproxy_in >> int_tmp_arr.at(i);
-			
-		}
-	}
-
-	if(!celldens_in){
-		for(i = 0 ; i < nCells; i++){
-			dbl_tmp_arr.at(i) = 1;
-		}
-	} else {
-		for(i = 0; i < nCells; i++){
-			cellproxy_in >> dbl_tmp_arr.at(i);
-			
-		}
-	}
-
-	cellproxy_in.close();
-	celldens_in.close();
-
-	if (!(cDensVar = grid.add_var("cellDensity", ncDouble, nCellsDim))) return NC_ERR;
-	if (!cDensVar->put(&dbl_tmp_arr.at(0),nCells)) return NC_ERR;
-	if (!(cProxyVar = grid.add_var("cellProxy", ncInt, nCellsDim))) return NC_ERR;
-	if (!cProxyVar->put(&int_tmp_arr.at(0),nCells)) return NC_ERR;
-
-	//Build and write vertProxy and vertDens
-	int_tmp_arr.clear();
-	dbl_tmp_arr.clear();
-	int_tmp_arr.resize(nVertices);
-	dbl_tmp_arr.resize(nVertices);
-	ifstream vertproxy_in("SaveVertexProxy");
-	ifstream vertdens_in("SaveVertexDensity");
-
-	if(!vertproxy_in){
-		for(i = 0 ; i < nVertices; i++){
-			int_tmp_arr.at(i) = 1;
-		}
-	} else {
-		for(i = 0; i < nVertices; i++){
-			vertproxy_in >> int_tmp_arr.at(i);
-			
-		}
-	}
-
-	if(!vertdens_in){
-		for(i = 0 ; i < nVertices; i++){
-			dbl_tmp_arr.at(i) = 1;
-		}
-	} else {
-		for(i = 0; i < nVertices; i++){
-			vertproxy_in >> dbl_tmp_arr.at(i);
-			
-		}
-	}
-
-	vertproxy_in.close();
-	vertdens_in.close();
-	if (!(vDensVar = grid.add_var("vertexDensity", ncDouble, nVerticesDim))) return NC_ERR;
-	if (!vDensVar->put(&dbl_tmp_arr.at(0),nVertices)) return NC_ERR;
-	if (!(vProxyVar = grid.add_var("vertexProxy", ncInt, nVerticesDim))) return NC_ERR;
-	if (!vProxyVar->put(&int_tmp_arr.at(0),nVertices)) return NC_ERR;
-
-	int_tmp_arr.clear();
-	dbl_tmp_arr.clear();
-	xBorder.push_back(0.0);
-	yBorder.push_back(0.0);
-	zBorder.push_back(0.0);
-
-	if (!(xBordVar = grid.add_var("xBorder", ncDouble, nBorderDim))) return NC_ERR;
-	if (!xBordVar->put(&xBorder.at(0),nBorder)) return NC_ERR;
-
-	if (!(yBordVar = grid.add_var("yBorder", ncDouble, nBorderDim))) return NC_ERR;
-	if (!yBordVar->put(&yBorder.at(0),nBorder)) return NC_ERR;
-
-	if (!(zBordVar = grid.add_var("zBorder", ncDouble, nBorderDim))) return NC_ERR;
-	if (!zBordVar->put(&zBorder.at(0),nBorder)) return NC_ERR;
-
-	return 0;
-}/*}}}*/
-
-int writeGraphFile() {/*{{{*/
+int writeGraphFile() 
+{
+cerr << "Actually started to write graph file..." << endl;
 	//This function writes out the graph.info file, for use with metis domain decomposition software.
 	ofstream graph("graph.info");
 
+cerr << "Going to write first line..." << endl;
 	graph << points.size() << " " << edge_vec.size() << endl;
 
+cerr << "Looping over cells..." << endl;
 	for(vec_int_itr = cellsOnCell.begin(); vec_int_itr != cellsOnCell.end(); ++vec_int_itr){
 		for(int_itr = (*vec_int_itr).begin(); int_itr != (*vec_int_itr).end(); ++int_itr){
 			graph << (*int_itr)+1 << " ";
@@ -2483,15 +1978,9 @@ int writeGraphFile() {/*{{{*/
 		graph << endl;
 	}
 
+cerr << "Closing the file..." << endl;
 	graph.close();
 	cellsOnCell.clear();
 	return 0;
-}/*}}}*/
-
-double coriolisParameter(const pnt &p){/*{{{*/
-	/******************************************************
-	 * This function returns the Coriolis parameter at a point.
-	 ******************************************************/
-	return 2.0*7.292E-5*sin(p.getLat());
-}/*}}}*/
+}
 
