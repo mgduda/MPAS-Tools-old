@@ -36,7 +36,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "netcdfcpp.h"
 #include "triangulation.h"
 #include "mpi.h"
 #include "pnetcdf.h"
