@@ -40,6 +40,11 @@
 #include "mpi.h"
 #include "pnetcdf.h"
 
+size_t min(size_t i1, size_t i2)
+{
+	return (i1 < i2) ? i1 : i2;
+}
+
 
 using namespace std;
 using namespace tr1;
@@ -1300,12 +1305,12 @@ int outputCellConnectivity(void)
 cerr << "Begin writing cellsOnCell" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
-        nccount[0] = 22000000;
+        nccount[0] = min((size_t)nCells, 22000000);
         nccount[1] = maxEdges;
-        while (ncstart[0] < (nCells - 22000000)) {
+        while (ncstart[0] < (nCells - nccount[0])) {
             ierr = ncmpi_put_vara_int(ncidp, cellsoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nCells-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, cellsoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
@@ -1334,12 +1339,12 @@ cerr << "Finish writing cellsOnCell " << ierr << endl;
 cerr << "Begin writing edgesOnCell" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
-        nccount[0] = 22000000;
+        nccount[0] = min((size_t)nCells, 22000000);
         nccount[1] = maxEdges;
-        while (ncstart[0] < (nCells - 22000000)) {
+        while (ncstart[0] < (nCells - nccount[0])) {
             ierr = ncmpi_put_vara_int(ncidp, edgesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nCells-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, edgesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
@@ -1365,12 +1370,12 @@ cerr << "Finish writing edgesOnCell " << ierr << endl;
 cerr << "Begin writing verticesOnCell" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
-        nccount[0] = 22000000;
+        nccount[0] = min((size_t)nCells, 22000000);
         nccount[1] = maxEdges;
-        while (ncstart[0] < (nCells - 22000000)) {
+        while (ncstart[0] < (nCells - nccount[0])) {
             ierr = ncmpi_put_vara_int(ncidp, verticesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nCells-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, verticesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
@@ -1390,11 +1395,11 @@ cerr << "Finish writing verticesOnCell " << ierr << endl;
 cerr << "Begin writing nEdgesOnCell" << endl;
 //        ierr = ncmpi_put_var_int(ncidp, nedgesoncell_var, tmp_arr);
         ncstart[0] = 0;
-        nccount[0] = 22000000;
-        while (ncstart[0] < (nCells - 22000000)) {
+        nccount[0] = min((size_t)nCells, 22000000);
+        while (ncstart[0] < (nCells - nccount[0])) {
             ierr = ncmpi_put_vara_int(ncidp, nedgesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nCells-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, nedgesoncell_var, ncstart, nccount, &tmp_arr[ncstart[0]]);
@@ -1457,12 +1462,12 @@ int outputEdgeConnectivity(void)
 cerr << "Begin writing edgesOnEdge" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
-        nccount[0] = 22000000;
+        nccount[0] = min((size_t)nEdges, 22000000);
         nccount[1] = maxEdges2;
-        while (ncstart[0] < (nEdges - 22000000)) {
+        while (ncstart[0] < (nEdges - nccount[0])) {
             ierr = ncmpi_put_vara_int(ncidp, edgesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nEdges-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, edgesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
@@ -1492,12 +1497,12 @@ cerr << "Finish writing edgesOnEdge " << ierr << endl;
 cerr << "Begin writing cellsOnEdge" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
-        nccount[0] = 22000000;
+        nccount[0] = min((size_t)nEdges, 22000000);
         nccount[1] = TWO;
-        while (ncstart[0] < (nEdges - 22000000)) {
+        while (ncstart[0] < (nEdges - nccount[0])) {
             ierr = ncmpi_put_vara_int(ncidp, cellsonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nEdges-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, cellsonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
@@ -1519,12 +1524,12 @@ cerr << "Finish writing cellsOnEdge " << ierr << endl;
 cerr << "Begin writing verticesOnEdge" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
-        nccount[0] = 22000000;
+        nccount[0] = min((size_t)nEdges, 22000000);
         nccount[1] = TWO;
-        while (ncstart[0] < (nEdges - 22000000)) {
+        while (ncstart[0] < (nEdges - nccount[0])) {
             ierr = ncmpi_put_vara_int(ncidp, verticesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nEdges-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, verticesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
@@ -1542,11 +1547,11 @@ cerr << "Finish writing verticesOnEdge " << ierr << endl;
 
 cerr << "Begin writing nEdgesOnEdge" << endl;
         ncstart[0] = 0;
-        nccount[0] = 22000000;
-        while (ncstart[0] < (nEdges - 22000000)) {
+        nccount[0] = min((size_t)nEdges, 22000000);
+        while (ncstart[0] < (nEdges - nccount[0])) {
             ierr = ncmpi_put_vara_int(ncidp, nedgesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nEdges-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, nedgesonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]]);
@@ -1618,12 +1623,12 @@ int outputVertexConnectivity(void)
 cerr << "Begin writing cellsOnVertex" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
-        nccount[0] = 22000000;
+        nccount[0] = min((size_t)nVertices, 22000000);
         nccount[1] = vertexDegree;
-        while (ncstart[0] < (nVertices - 22000000)) {
+        while (ncstart[0] < (nVertices - nccount[0])) {
             ierr = ncmpi_put_vara_int(ncidp, cellsonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nVertices-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, cellsonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
@@ -1649,12 +1654,12 @@ cerr << "Finish writing cellsOnVertex " << ierr << endl;
 cerr << "Begin writing edgesOnVertex" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
-        nccount[0] = 22000000;
+        nccount[0] = min((size_t)nVertices, 22000000);
         nccount[1] = vertexDegree;
-        while (ncstart[0] < (nVertices - 22000000)) {
+        while (ncstart[0] < (nVertices - nccount[0])) {
             ierr = ncmpi_put_vara_int(ncidp, edgesonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nVertices-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_int(ncidp, edgesonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
@@ -1706,11 +1711,11 @@ int outputCellParameters(void)
 
 cerr << "Begin writing areaCell" << endl;
         ncstart[0] = 0;
-        nccount[0] = 22000000;
-        while (ncstart[0] < (nCells - 22000000)) {
+        nccount[0] = min((size_t)nCells, 22000000);
+        while (ncstart[0] < (nCells - nccount[0])) {
             ierr = ncmpi_put_vara_double(ncidp, areacell_var, ncstart, nccount, &areaCell[ncstart[0]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nCells-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, areacell_var, ncstart, nccount, &areaCell[ncstart[0]]);
@@ -1748,11 +1753,11 @@ int outputEdgeParameters(void)
 	//Build and write angleEdge
 cerr << "Begin writing angleEdge" << endl;
         ncstart[0] = 0;
-        nccount[0] = 22000000;
-        while (ncstart[0] < (nEdges - 22000000)) {
+        nccount[0] = min((size_t)nEdges, 22000000);
+        while (ncstart[0] < (nEdges - nccount[0])) {
             ierr = ncmpi_put_vara_double(ncidp, angleedge_var, ncstart, nccount, &angleEdge[ncstart[0]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nEdges-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, angleedge_var, ncstart, nccount, &angleEdge[ncstart[0]]);
@@ -1762,11 +1767,11 @@ cerr << "Finish writing angleEdge " << ierr << endl;
 	//Build and write dcEdge
 cerr << "Begin writing dcEdge" << endl;
         ncstart[0] = 0;
-        nccount[0] = 22000000;
-        while (ncstart[0] < (nEdges - 22000000)) {
+        nccount[0] = min((size_t)nEdges, 22000000);
+        while (ncstart[0] < (nEdges - nccount[0])) {
             ierr = ncmpi_put_vara_double(ncidp, dcedge_var, ncstart, nccount, &dcEdge[ncstart[0]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nEdges-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, dcedge_var, ncstart, nccount, &dcEdge[ncstart[0]]);
@@ -1776,11 +1781,11 @@ cerr << "Finish writing dcEdge " << ierr << endl;
 	//Build and write dvEdge
 cerr << "Begin writing dvEdge" << endl;
         ncstart[0] = 0;
-        nccount[0] = 22000000;
-        while (ncstart[0] < (nEdges - 22000000)) {
+        nccount[0] = min((size_t)nEdges, 22000000);
+        while (ncstart[0] < (nEdges - nccount[0])) {
             ierr = ncmpi_put_vara_double(ncidp, dvedge_var, ncstart, nccount, &dvEdge[ncstart[0]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nEdges-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, dvedge_var, ncstart, nccount, &dvEdge[ncstart[0]]);
@@ -1807,12 +1812,12 @@ cerr << "Finish writing dvEdge " << ierr << endl;
 cerr << "Begin writing weightsOnEdge" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
-        nccount[0] = 11000000;
+        nccount[0] = min((size_t)nEdges, 11000000);
         nccount[1] = maxEdges2;
-        while (ncstart[0] < (nEdges - 11000000)) {
+        while (ncstart[0] < (nEdges - nccount[0])) {
             ierr = ncmpi_put_vara_double(ncidp, weightsonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 11000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nEdges-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, weightsonedge_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
@@ -1867,12 +1872,12 @@ int outputVertexParameters(void)
 cerr << "Begin writing kiteAreasOnVertex" << endl;
         ncstart[0] = 0;
         ncstart[1] = 0;
-        nccount[0] = 22000000;
+        nccount[0] = min((size_t)nVertices, 22000000);
         nccount[1] = vertexDegree;
-        while (ncstart[0] < (nVertices - 22000000)) {
+        while (ncstart[0] < (nVertices - nccount[0])) {
             ierr = ncmpi_put_vara_double(ncidp, kiteareasonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nVertices-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, kiteareasonvertex_var, ncstart, nccount, &tmp_arr[ncstart[0]*nccount[1]]);
@@ -1885,11 +1890,11 @@ cerr << "Finish writing kiteAreasOnVertex " << ierr << endl;
 	// Build and write areaTriangle
 cerr << "Begin writing areaTriangle" << endl;
         ncstart[0] = 0;
-        nccount[0] = 22000000;
-        while (ncstart[0] < (nVertices - 22000000)) {
+        nccount[0] = min((size_t)nVertices, 22000000);
+        while (ncstart[0] < (nVertices - nccount[0])) {
             ierr = ncmpi_put_vara_double(ncidp, areatriangle_var, ncstart, nccount, &areaTriangle[ncstart[0]]);
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nVertices-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, areatriangle_var, ncstart, nccount, &areaTriangle[ncstart[0]]);
@@ -1943,11 +1948,11 @@ int outputMeshDensity(void)
 
 cerr << "Begin writing meshDensity" << endl;
         ncstart[0] = 0;
-        nccount[0] = 22000000;
-        while (ncstart[0] < (nCells - 22000000)) {
+        nccount[0] = min((size_t)nCells, 22000000);
+        while (ncstart[0] < (nCells - nccount[0])) {
             ierr = ncmpi_put_vara_double(ncidp, meshdensity_var, ncstart, nccount, &dbl_tmp_arr.at(ncstart[0]));
 cerr << ierr << endl;
-            ncstart[0] = ncstart[0] + 22000000;
+            ncstart[0] = ncstart[0] + nccount[0];
         }
         nccount[0] = nCells-ncstart[0];
         if (nccount[0] > 0) ierr = ncmpi_put_vara_double(ncidp, meshdensity_var, ncstart, nccount, &dbl_tmp_arr.at(ncstart[0]));
