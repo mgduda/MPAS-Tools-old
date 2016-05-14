@@ -885,14 +885,14 @@ void makeWeightsOnEdge()
 	weightsOnEdge.resize(edge_vec.size());
 
 	for(i = 0; i < edge_vec.size(); i++){
-		int jj;
-		int cur_edge;
-		int prev_edge;
-		int nei;
-		int cell1, cell2;
-		int edge1, edge2;
-		int vert1, vert2;
-		int neoc1, neoc2;
+		size_t jj;
+		size_t cur_edge;
+		size_t prev_edge;
+		size_t nei;
+		size_t cell1, cell2;
+		size_t edge1, edge2;
+		size_t vert1, vert2;
+		size_t neoc1, neoc2;
 		double de;
 		double area;
 		double sum_r;
@@ -1147,6 +1147,7 @@ int outputGridCoordinates(void)
 	 *
 	 * **********************************************************************/
 
+        MPI_Offset ncstart[1], nccount[1];
         int ierr;
 
 	// Return this code to the OS in case of failure.
@@ -1211,12 +1212,26 @@ int outputGridCoordinates(void)
 
 		i++;
 	}
-        ierr = ncmpi_put_var_double(ncidp, latedge_var, lat);
-        ierr = ncmpi_put_var_double(ncidp, lonedge_var, lon);
-        ierr = ncmpi_put_var_double(ncidp, xedge_var, x);
-        ierr = ncmpi_put_var_double(ncidp, yedge_var, y);
-        ierr = ncmpi_put_var_double(ncidp, zedge_var, z);
-        ierr = ncmpi_put_var_int(ncidp, idx2edge_var, idxTo);
+        ncstart[0] = 0;
+        nccount[0] = min((size_t)nEdges, 22000000);
+        while (ncstart[0] < (nEdges - nccount[0])) {
+	        ierr = ncmpi_put_vara_double(ncidp, latedge_var, ncstart, nccount, &lat[ncstart[0]]);
+        	ierr = ncmpi_put_vara_double(ncidp, lonedge_var, ncstart, nccount, &lon[ncstart[0]]);
+	        ierr = ncmpi_put_vara_double(ncidp, xedge_var, ncstart, nccount, &x[ncstart[0]]);
+        	ierr = ncmpi_put_vara_double(ncidp, yedge_var, ncstart, nccount, &y[ncstart[0]]);
+	        ierr = ncmpi_put_vara_double(ncidp, zedge_var, ncstart, nccount, &z[ncstart[0]]);
+        	ierr = ncmpi_put_vara_int(ncidp, idx2edge_var, ncstart, nccount, &idxTo[ncstart[0]]);
+		ncstart[0] = ncstart[0] + nccount[0];
+        }
+        nccount[0] = nEdges-ncstart[0];
+        if (nccount[0] > 0) {
+	        ierr = ncmpi_put_vara_double(ncidp, latedge_var, ncstart, nccount, &lat[ncstart[0]]);
+        	ierr = ncmpi_put_vara_double(ncidp, lonedge_var, ncstart, nccount, &lon[ncstart[0]]);
+	        ierr = ncmpi_put_vara_double(ncidp, xedge_var, ncstart, nccount, &x[ncstart[0]]);
+        	ierr = ncmpi_put_vara_double(ncidp, yedge_var, ncstart, nccount, &y[ncstart[0]]);
+	        ierr = ncmpi_put_vara_double(ncidp, zedge_var, ncstart, nccount, &z[ncstart[0]]);
+        	ierr = ncmpi_put_vara_int(ncidp, idx2edge_var, ncstart, nccount, &idxTo[ncstart[0]]);
+	}
 
 
 	free(x);
@@ -1245,12 +1260,26 @@ int outputGridCoordinates(void)
 
 		i++;
 	}
-        ierr = ncmpi_put_var_double(ncidp, latvertex_var, lat);
-        ierr = ncmpi_put_var_double(ncidp, lonvertex_var, lon);
-        ierr = ncmpi_put_var_double(ncidp, xvertex_var, x);
-        ierr = ncmpi_put_var_double(ncidp, yvertex_var, y);
-        ierr = ncmpi_put_var_double(ncidp, zvertex_var, z);
-        ierr = ncmpi_put_var_int(ncidp, idx2vertex_var, idxTo);
+        ncstart[0] = 0;
+        nccount[0] = min((size_t)nVertices, 22000000);
+        while (ncstart[0] < (nVertices - nccount[0])) {
+	        ierr = ncmpi_put_vara_double(ncidp, latvertex_var, ncstart, nccount, &lat[ncstart[0]]);
+        	ierr = ncmpi_put_vara_double(ncidp, lonvertex_var, ncstart, nccount, &lon[ncstart[0]]);
+	        ierr = ncmpi_put_vara_double(ncidp, xvertex_var, ncstart, nccount, &x[ncstart[0]]);
+        	ierr = ncmpi_put_vara_double(ncidp, yvertex_var, ncstart, nccount, &y[ncstart[0]]);
+	        ierr = ncmpi_put_vara_double(ncidp, zvertex_var, ncstart, nccount, &z[ncstart[0]]);
+        	ierr = ncmpi_put_vara_int(ncidp, idx2vertex_var, ncstart, nccount, &idxTo[ncstart[0]]);
+		ncstart[0] = ncstart[0] + nccount[0];
+        }
+        nccount[0] = nVertices-ncstart[0];
+        if (nccount[0] > 0) {
+	        ierr = ncmpi_put_vara_double(ncidp, latvertex_var, ncstart, nccount, &lat[ncstart[0]]);
+        	ierr = ncmpi_put_vara_double(ncidp, lonvertex_var, ncstart, nccount, &lon[ncstart[0]]);
+	        ierr = ncmpi_put_vara_double(ncidp, xvertex_var, ncstart, nccount, &x[ncstart[0]]);
+        	ierr = ncmpi_put_vara_double(ncidp, yvertex_var, ncstart, nccount, &y[ncstart[0]]);
+	        ierr = ncmpi_put_vara_double(ncidp, zvertex_var, ncstart, nccount, &z[ncstart[0]]);
+        	ierr = ncmpi_put_vara_int(ncidp, idx2vertex_var, ncstart, nccount, &idxTo[ncstart[0]]);
+	}
 
 	free(x);
 	free(y);
