@@ -888,7 +888,7 @@ void makeWeightsOnEdge()
 		size_t jj;
 		size_t cur_edge;
 		size_t prev_edge;
-		size_t nei;
+		double nei;
 		size_t cell1, cell2;
 		size_t edge1, edge2;
 		size_t vert1, vert2;
@@ -944,9 +944,9 @@ void makeWeightsOnEdge()
 			//Inward means cell center is end 0 of current edge, where as 
 			//Outward mean cell center is end 1 of current edge
 			if(cell1 == cellsOnEdge[cur_edge].at(0)){
-				nei = 1;
+				nei = 1.0;
 			} else {
-				nei = -1;
+				nei = -1.0;
 			}
 
 			//weightsOnEdge as defined in Thuburn paper referenced above.
@@ -989,9 +989,9 @@ void makeWeightsOnEdge()
 			sum_r = sum_r + area/areaCell.at(cell2);
 
 			if(cell2 == cellsOnEdge[cur_edge].at(0)){
-				nei = -1;
+				nei = -1.0;
 			} else {
-				nei = 1;
+				nei = 1.0;
 			}
 
 			weightsOnEdge[i][jj] = (0.5 - sum_r)*nei*dvEdge[cur_edge]/de;
