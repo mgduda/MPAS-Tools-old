@@ -160,6 +160,57 @@ int outputVordrawArrays();
 int writeGraphFile();
 
 
+/********************************************************************************
+ * sphere_angle
+ *
+ * Computes the angle between arcs AB and AC, given points A, B, and C
+ * Equation numbers w.r.t. http://mathworld.wolfram.com/SphericalTrigonometry.html
+ ********************************************************************************/
+double sphere_angle(double ax, double ay, double az, double bx, double by, double bz, double cx, double cy, double cz)
+{
+	double a, b, c;		// Side lengths of spherical triangle ABC
+
+	double ABx, ABy, ABz;	// The components of the vector AB
+	double mAB;		// The magnitude of AB
+	double ACx, ACy, ACz;	// The components of the vector AC
+	double mAC;		// The magnitude of AC
+
+	double Dx;		// The i-components of the cross product AB x AC
+	double Dy;		// The j-components of the cross product AB x AC
+	double Dz;		// The k-components of the cross product AB x AC
+
+	double s;		// Semiperimeter of the triangle
+	double sin_angle;
+
+	a = acos(std::max(std::min(bx*cx + by*cy + bz*cz, (double)1.0), (double)-1.0));     // Eqn. (3)
+	b = acos(std::max(std::min(ax*cx + ay*cy + az*cz, (double)1.0), (double)-1.0));     // Eqn. (2)
+	c = acos(std::max(std::min(ax*bx + ay*by + az*bz, (double)1.0), (double)-1.0));     // Eqn. (1)
+
+	ABx = bx - ax;
+	ABy = by - ay;
+	ABz = bz - az;
+
+	ACx = cx - ax;
+	ACy = cy - ay;
+	ACz = cz - az;
+
+	Dx =   (ABy * ACz) - (ABz * ACy);
+	Dy = -((ABx * ACz) - (ABz * ACx));
+	Dz =   (ABx * ACy) - (ABy * ACx);
+
+	s = (double)0.5 * (a + b + c);
+
+	sin_angle = sqrt(std::min((double)1.0 ,std::max((double)0.0 ,(sin(s-b)*sin(s-c))/(sin(b)*sin(c)))));   // Eqn. (28)
+
+	if ((Dx*ax + Dy*ay + Dz*az) >= (double)0.0) {
+		return 2.0 * asin(std::max(std::min(sin_angle, (double)1.0), (double)-1.0));
+	}
+	else {
+		return -2.0 * asin(std::max(std::min(sin_angle, (double)1.0), (double)-1.0));
+	}
+}
+
+
 int main(int argc, char ** argv)
 {
         int ierr;
@@ -597,6 +648,10 @@ void orderConnectivityArrays()
 		pnt np;
 		pnt edge;
 		double sign;
+		double ax, ay, az;
+		double bx, by, bz;
+		double cx, cy, cz;
+		double vmag;
 
 		angleEdge[i] = 0;
 		// Ensure that u (cellsOnEdge2 - cellsOnEdge1) crossed with
@@ -651,22 +706,33 @@ void orderConnectivityArrays()
 		//    or
 		// 2. The angles the positive normal direction (u)
 		// 	  makes with the local eastward direction.
-		np = pntFromLatLon(edge.getLat()+0.05, edge.getLon());
-		angleEdge[i] = acos( std::max(std::min((ccenters.at(vert2).getLat() - ccenters.at(vert1).getLat())/dvEdge[i],1.0),-1.0) );
+		ax = edge.x;
+		ay = edge.y;
+		az = edge.z;
 
-                sign = ccenters.at(vert2).getLon() - ccenters.at(vert1).getLon();
-                if (sign >= M_PI/2.0) 
-                   sign = sign - 2.0*M_PI;
-                else if (sign < -M_PI/2.0) 
-                   sign = sign + 2.0*M_PI;
- 
-                if (sign > 0.0) 
-                   sign = -1.0;
-                else
-                   sign = 1.0;
-		angleEdge[i] = fabs(angleEdge[i]) * sign;
-		if (angleEdge[i] > M_PI) angleEdge[i] = angleEdge[i] - 2.0*M_PI;
-		if (angleEdge[i] < -M_PI) angleEdge[i] = angleEdge[i] + 2.0*M_PI;
+		if (sign >= 0.0) {
+			cx = ccenters.at(vert2).x;
+			cy = ccenters.at(vert2).y;
+			cz = ccenters.at(vert2).z;
+		}
+		else {
+			cx = ccenters.at(vert1).x;
+			cy = ccenters.at(vert1).y;
+			cz = ccenters.at(vert1).z;
+		}
+
+		vmag = sqrt((cx-ax)*(cx-ax) + (cy-ay)*(cy-ay) + (cz-az)*(cz-az));
+
+		bx = vmag * (-cos(edge.getLon())*sin(edge.getLat())) + ax;
+		by = vmag * (-sin(edge.getLon())*sin(edge.getLat())) + ay;
+		bz = vmag * ( cos(edge.getLat()))                    + az;
+         
+		vmag = sqrt(bx*bx + by*by + bz*bz);
+		bx = bx / vmag;
+		by = by / vmag;
+		bz = bz / vmag;
+
+		angleEdge[i] = sphere_angle(ax, ay, az, bx, by, bz, cx, cy, cz);
 	}
 
 	//Order cellsOnVertex and edgesOnVertex, areaTriangle
