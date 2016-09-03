@@ -1,0 +1,84 @@
+dims:
+nCells
+nEdges
+nVertices
+maxEdges
+maxEdges2
+TWO
+vertexDegree
+FIFTEEN
+nMonths
+R3
+TWENTYONE
+StrLen
+
+fields:
+latCell	.false.
+lonCell	.false.
+meshDensity	.false.
+xCell	.false.
+yCell	.false.
+zCell	.false.
+indexToCellID	.true.
+latEdge	.false.
+lonEdge	.false.
+xEdge	.false.
+yEdge	.false.
+zEdge	.false.
+indexToEdgeID	.true.
+latVertex	.false.
+lonVertex	.false.
+xVertex	.false.
+yVertex	.false.
+zVertex	.false.
+indexToVertexID	.true.
+cellsOnEdge	.true.
+nEdgesOnCell	.false.
+nEdgesOnEdge	.false.
+edgesOnCell	.true.
+edgesOnEdge	.true.
+weightsOnEdge	.false.
+dvEdge	.false.
+dcEdge	.false.
+angleEdge	.false.
+areaCell	.false.
+areaTriangle	.false.
+cellsOnCell	.true.
+verticesOnCell	.true.
+verticesOnEdge	.true.
+edgesOnVertex	.true.
+cellsOnVertex	.true.
+kiteAreasOnVertex	.false.
+edgeNormalVectors	.false.
+localVerticalUnitVectors	.false.
+cellTangentPlane	.false.
+fEdge	.false.
+fVertex	.false.
+ter	.false.
+landmask	.false.
+ivgtyp	.false.
+mminlu	.false.
+isltyp	.false.
+soilcat_bot	.false.
+snoalb	.false.
+soiltemp	.false.
+greenfrac	.false.
+shdmin	.false.
+shdmax	.false.
+albedo12m	.false.
+varsso	.false.
+var2d	.false.
+con	.false.
+oa1	.false.
+oa2	.false.
+oa3	.false.
+oa4	.false.
+ol1	.false.
+ol2	.false.
+ol3	.false.
+ol4	.false.
+deriv_two	.false.
+advCells	.false.
+defc_a	.false.
+defc_b	.false.
+coeffs_reconstruct	.false.

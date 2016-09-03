@@ -18,14 +18,11 @@
 #define NETCDF4_OUTPUT
 !define PNETCDF_OUTPUT
 
-!define TRANSFER_MESH
-#define TRANSFER_STATIC
-
 #define R4_INPUT
 !define R8_INPUT
 
-!define R4_OUTPUT
-#define R8_OUTPUT
+#define R4_OUTPUT
+!define R8_OUTPUT
 
 program permute_mesh
 
@@ -66,263 +63,16 @@ program permute_mesh
 
     character (len=512) :: outname
 
-
-#ifdef TRANSFER_MESH
-    character (len=32), dimension(7) :: dims = [ character(len=32) :: &
-                                                'nCells', &
-                                                'nEdges', &
-                                                'nVertices', &
-                                                'maxEdges', &
-                                                'maxEdges2', &
-                                                'TWO', &
-                                                'vertexDegree' &
-                                               ]
-
-    character (len=32), dimension(36) :: fields = [ character(len=32) :: &
-                                                   'latCell', &
-                                                   'lonCell', &
-                                                   'meshDensity', &
-                                                   'xCell', &
-                                                   'yCell', &
-                                                   'zCell', &
-                                                   'indexToCellID', &
-                                                   'latEdge', &
-                                                   'lonEdge', &
-                                                   'xEdge', &
-                                                   'yEdge', &
-                                                   'zEdge', &
-                                                   'indexToEdgeID', &
-                                                   'latVertex', &
-                                                   'lonVertex', &
-                                                   'xVertex', &
-                                                   'yVertex', &
-                                                   'zVertex', &
-                                                   'indexToVertexID', &
-                                                   'cellsOnEdge', &
-                                                   'nEdgesOnCell', &
-                                                   'nEdgesOnEdge', &
-                                                   'edgesOnCell', &
-                                                   'edgesOnEdge', &
-                                                   'weightsOnEdge', &
-                                                   'dvEdge', &
-                                                   'dcEdge', &
-                                                   'angleEdge', &
-                                                   'areaCell', &
-                                                   'areaTriangle', &
-                                                   'cellsOnCell', &
-                                                   'verticesOnCell', &
-                                                   'verticesOnEdge', &
-                                                   'edgesOnVertex', &
-                                                   'cellsOnVertex', &
-                                                   'kiteAreasOnVertex' &
-                                                  ]
-
-    logical, dimension(36) :: reindex = [ &
-                                         .false., & !  'latCell'
-                                         .false., & !  'lonCell'
-                                         .false., & !  'meshDensity'
-                                         .false., & !  'xCell'
-                                         .false., & !  'yCell'
-                                         .false., & !  'zCell'
-                                         .true.,  & !  'indexToCellID'
-                                         .false., & !  'latEdge'
-                                         .false., & !  'lonEdge'
-                                         .false., & !  'xEdge'
-                                         .false., & !  'yEdge'
-                                         .false., & !  'zEdge'
-                                         .true.,  & !  'indexToEdgeID'
-                                         .false., & !  'latVertex'
-                                         .false., & !  'lonVertex'
-                                         .false., & !  'xVertex'
-                                         .false., & !  'yVertex'
-                                         .false., & !  'zVertex'
-                                         .true.,  & !  'indexToVertexID'
-                                         .true.,  & !  'cellsOnEdge'
-                                         .false., & !  'nEdgesOnCell'
-                                         .false., & !  'nEdgesOnEdge'
-                                         .true.,  & !  'edgesOnCell'
-                                         .true.,  & !  'edgesOnEdge'
-                                         .false., & !  'weightsOnEdge'
-                                         .false., & !  'dvEdge'
-                                         .false., & !  'dcEdge'
-                                         .false., & !  'angleEdge'
-                                         .false., & !  'areaCell'
-                                         .false., & !  'areaTriangle'
-                                         .true.,  & !  'cellsOnCell'
-                                         .true.,  & !  'verticesOnCell'
-                                         .true.,  & !  'verticesOnEdge'
-                                         .true.,  & !  'edgesOnVertex'
-                                         .true.,  & !  'cellsOnVertex'
-                                         .false.  & !  'kiteAreasOnVertex'
-                                                  ]
-#endif
-
-
-#ifdef TRANSFER_STATIC
-    character (len=32), dimension(12) :: dims = [ character(len=32) :: &
-                                                'nCells', &
-                                                'nEdges', &
-                                                'nVertices', &
-                                                'maxEdges', &
-                                                'maxEdges2', &
-                                                'TWO', &
-                                                'vertexDegree', &
-                                                'FIFTEEN', &
-                                                'nMonths', &
-                                                'R3', &
-                                                'TWENTYONE',  &
-                                                'StrLen'  &
-                                               ]
-
-    character (len=32), dimension(69) :: fields = [ character(len=32) :: &
-                                                   'latCell', &
-                                                   'lonCell', &
-                                                   'meshDensity', &
-                                                   'xCell', &
-                                                   'yCell', &
-                                                   'zCell', &
-                                                   'indexToCellID', &
-                                                   'latEdge', &
-                                                   'lonEdge', &
-                                                   'xEdge', &
-                                                   'yEdge', &
-                                                   'zEdge', &
-                                                   'indexToEdgeID', &
-                                                   'latVertex', &
-                                                   'lonVertex', &
-                                                   'xVertex', &
-                                                   'yVertex', &
-                                                   'zVertex', &
-                                                   'indexToVertexID', &
-                                                   'cellsOnEdge', &
-                                                   'nEdgesOnCell', &
-                                                   'nEdgesOnEdge', &
-                                                   'edgesOnCell', &
-                                                   'edgesOnEdge', &
-                                                   'weightsOnEdge', &
-                                                   'dvEdge', &
-                                                   'dcEdge', &
-                                                   'angleEdge', &
-                                                   'areaCell', &
-                                                   'areaTriangle', &
-                                                   'cellsOnCell', &
-                                                   'verticesOnCell', &
-                                                   'verticesOnEdge', &
-                                                   'edgesOnVertex', &
-                                                   'cellsOnVertex', &
-                                                   'kiteAreasOnVertex', &
-                                                   'edgeNormalVectors', &
-                                                   'localVerticalUnitVectors', &
-                                                   'cellTangentPlane', &
-                                                   'fEdge', &
-                                                   'fVertex', &
-                                                   'ter', &
-                                                   'landmask', &
-                                                   'ivgtyp', &
-                                                   'mminlu', &
-                                                   'isltyp', &
-                                                   'soilcat_bot', &
-                                                   'snoalb', &
-                                                   'soiltemp', &
-                                                   'greenfrac', &
-                                                   'shdmin', &
-                                                   'shdmax', &
-                                                   'albedo12m', &
-                                                   'varsso', &
-                                                   'var2d', &
-                                                   'con', &
-                                                   'oa1', &
-                                                   'oa2', &
-                                                   'oa3', &
-                                                   'oa4', &
-                                                   'ol1', &
-                                                   'ol2', &
-                                                   'ol3', &
-                                                   'ol4', &
-                                                   'deriv_two', &
-                                                   'advCells', &
-                                                   'defc_a', &
-                                                   'defc_b', &
-                                                   'coeffs_reconstruct' &
-                                                  ]
-
-    logical, dimension(69) :: reindex = [ &
-                                         .false., & !  'latCell'
-                                         .false., & !  'lonCell'
-                                         .false., & !  'meshDensity'
-                                         .false., & !  'xCell'
-                                         .false., & !  'yCell'
-                                         .false., & !  'zCell'
-                                         .true.,  & !  'indexToCellID'
-                                         .false., & !  'latEdge'
-                                         .false., & !  'lonEdge'
-                                         .false., & !  'xEdge'
-                                         .false., & !  'yEdge'
-                                         .false., & !  'zEdge'
-                                         .true.,  & !  'indexToEdgeID'
-                                         .false., & !  'latVertex'
-                                         .false., & !  'lonVertex'
-                                         .false., & !  'xVertex'
-                                         .false., & !  'yVertex'
-                                         .false., & !  'zVertex'
-                                         .true.,  & !  'indexToVertexID'
-                                         .true.,  & !  'cellsOnEdge'
-                                         .false., & !  'nEdgesOnCell'
-                                         .false., & !  'nEdgesOnEdge'
-                                         .true.,  & !  'edgesOnCell'
-                                         .true.,  & !  'edgesOnEdge'
-                                         .false., & !  'weightsOnEdge'
-                                         .false., & !  'dvEdge'
-                                         .false., & !  'dcEdge'
-                                         .false., & !  'angleEdge'
-                                         .false., & !  'areaCell'
-                                         .false., & !  'areaTriangle'
-                                         .true.,  & !  'cellsOnCell'
-                                         .true.,  & !  'verticesOnCell'
-                                         .true.,  & !  'verticesOnEdge'
-                                         .true.,  & !  'edgesOnVertex'
-                                         .true.,  & !  'cellsOnVertex'
-                                         .false., & !  'kiteAreasOnVertex'
-                                         .false., & !  'edgeNormalVectors', &
-                                         .false., & !  'localVerticalUnitVectors', &
-                                         .false., & !  'cellTangentPlane', &
-                                         .false., & !  'fEdge', &
-                                         .false., & !  'fVertex', &
-                                         .false., & !  'ter', &
-                                         .false., & !  'landmask', &
-                                         .false., & !  'ivgtyp', &
-                                         .false., & !  'mminlu', &
-                                         .false., & !  'isltyp', &
-                                         .false., & !  'soilcat_bot', &
-                                         .false., & !  'snoalb', &
-                                         .false., & !  'soiltemp', &
-                                         .false., & !  'greenfrac', &
-                                         .false., & !  'shdmin', &
-                                         .false., & !  'shdmax', &
-                                         .false., & !  'albedo12m', &
-                                         .false., & !  'varsso', &
-                                         .false., & !  'var2d', &
-                                         .false., & !  'con', &
-                                         .false., & !  'oa1', &
-                                         .false., & !  'oa2', &
-                                         .false., & !  'oa3', &
-                                         .false., & !  'oa4', &
-                                         .false., & !  'ol1', &
-                                         .false., & !  'ol2', &
-                                         .false., & !  'ol3', &
-                                         .false., & !  'ol4', &
-                                         .false., & !  'deriv_two', &
-                                         .false., & !  'advCells', &
-                                         .false., & !  'defc_a', &
-                                         .false., & !  'defc_b', &
-                                         .false.  & !  'coeffs_reconstruct', &
-                                        ]
-#endif
+    character(len=32), dimension(:), pointer :: fields
+    character(len=32), dimension(:), pointer :: dims
+    logical, dimension(:), pointer :: reindex
 
     character (len=32), dimension(2) :: atts = [ character(len=32) :: &
                                                 'on_a_sphere', &
                                                 'sphere_radius' &
                                                ]
+
+    call parse_transfer_list(dims, fields, reindex)
 
 
     !
@@ -415,6 +165,7 @@ program permute_mesh
     end if
 
     do i=1,size(dims)
+        write(0,*) 'Transferring dimension '//trim(dims(i))
         call xfer_dim(ncid_in, ncid_out, trim(dims(i)))
     end do
 
@@ -446,7 +197,7 @@ program permute_mesh
     ! Transfer fields themselves
     !
     do i=1,size(fields)
-        write(0,*) 'Transferring '//trim(fields(i))
+        write(0,*) 'Transferring field '//trim(fields(i))
         call copy_var(ncid_in, ncid_out, trim(fields(i)), reindex(i), &
                       cell_order, cell_lookup, &
                       edge_order, edge_lookup, &
@@ -476,6 +227,10 @@ program permute_mesh
     deallocate(cell_lookup)
     deallocate(edge_lookup)
     deallocate(vertex_lookup)
+
+    deallocate(fields)
+    deallocate(reindex)
+    deallocate(dims)
 
     call MPI_Finalize(ierr)
 
@@ -1797,4 +1552,80 @@ if (top > 1000) write(0,*) 'Error: Quicksort exhausted its stack.'
     end subroutine dictionary_reset
 
 
+    subroutine parse_transfer_list(dims, fields, reindex)
+ 
+        implicit none
+     
+        character(len=32), dimension(:), pointer :: fields
+        character(len=32), dimension(:), pointer :: dims
+        logical, dimension(:), pointer :: reindex
+
+        character(len=64) :: line
+        integer :: stat
+        integer :: now_parsing
+        integer :: nDims, nFields
+     
+        integer, parameter :: PARSE_NOTHING = 1, &
+                              PARSE_DIMS = 2, &
+                              PARSE_FIELDS = 3
+     
+        nDims = 0
+        nFields = 0
+        open(44, file='transfer_list.txt', form='formatted', status='old')
+     
+        stat = 0
+        now_parsing = PARSE_NOTHING
+        do while (stat == 0)
+            read(44,'(a)',iostat=stat) line 
+            if (stat == 0) then
+                if (len_trim(line) > 0) then
+                    if (trim(line) == 'dims:') then
+                        now_parsing = PARSE_DIMS
+                    else if (trim(line) == 'fields:') then
+                        now_parsing = PARSE_FIELDS
+                    else
+                        if (now_parsing == PARSE_DIMS) then
+                            nDims = nDims + 1
+                        else if (now_parsing == PARSE_FIELDS) then
+                            nFields = nFields + 1
+                        end if
+                    end if
+                end if
+            end if
+        end do
+     
+        rewind(44)
+     
+        allocate(fields(nFields))
+        allocate(reindex(nFields))
+        allocate(dims(nDims))
+     
+        stat = 0
+        nDims = 0
+        nFields = 0
+        now_parsing = PARSE_NOTHING
+        do while (stat == 0)
+            read(44,'(a)',iostat=stat) line 
+            if (stat == 0) then
+                if (len_trim(line) > 0) then
+                    if (trim(line) == 'dims:') then
+                        now_parsing = PARSE_DIMS
+                    else if (trim(line) == 'fields:') then
+                        now_parsing = PARSE_FIELDS
+                    else
+                        if (now_parsing == PARSE_DIMS) then
+                            nDims = nDims + 1
+                            read(line,*) dims(nDims)
+                        else if (now_parsing == PARSE_FIELDS) then
+                            nFields = nFields + 1
+                            read(line,*) fields(nFields), reindex(nFields)
+                        end if
+                    end if
+                end if
+            end if
+        end do
+        close(44)
+     
+    end subroutine parse_transfer_list
+     
 end program permute_mesh
