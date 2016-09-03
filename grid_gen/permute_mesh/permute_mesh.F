@@ -76,17 +76,22 @@ program permute_mesh
 
 
     !
-    ! Requires two command-line arguments: the name of the grid file and the name of the Metis graph partition file
+    ! Requires one or two command-line arguments: the name of the grid file and, 
+    ! optionally, the name of the Metis graph partition file
     !
-    if (command_argument_count() /= 2) then
+    if (command_argument_count() < 1 .or. command_argument_count() > 2) then
         write(0,*) ' '
-        write(0,*) 'Usage: permute_mesh <grid file> <partition file>'
+        write(0,*) 'Usage: permute_mesh <grid file> [partition file]'
         write(0,*) ' '
         stop
     end if
 
     call get_command_argument(1, grid_filename)
-    call get_command_argument(2, partition_filename)
+    if (command_argument_count() == 2) then
+       call get_command_argument(2, partition_filename)
+    else
+       partition_filename = ''
+    end if
 
     call MPI_Init(ierr)
 
@@ -318,315 +323,341 @@ contains
         write(0,*) 'maxEdges=',maxEdges
 #endif
 
-        ntasks = 0 
-        allocate(cell_owner(nCells))
-        allocate(edge_owner(nEdges))
-        allocate(vertex_owner(nVertices))
 
-        !
-        ! Read partition file to determine ownership of cells
-        !
-        open(42, file=trim(partition_filename), form='formatted', iostat=ierr)
-        if (ierr /= 0) then
-            write(0,*) 'Error opening partition file '''//trim(partition_filename)//''''
-            stop
-        end if
-        do i=1,nCells
-            read(42,*,iostat=ierr) cell_owner(i)
+        if (len_trim(partition_filename) /= 0) then
+
+            ntasks = 0 
+            allocate(cell_owner(nCells))
+            allocate(edge_owner(nEdges))
+            allocate(vertex_owner(nVertices))
+    
+            !
+            ! Read partition file to determine ownership of cells
+            !
+            open(42, file=trim(partition_filename), form='formatted', iostat=ierr)
             if (ierr /= 0) then
-                write(0,*) 'Error reading partition file '''//trim(partition_filename)//''''
+                write(0,*) 'Error opening partition file '''//trim(partition_filename)//''''
                 stop
             end if
-            if (cell_owner(i) > ntasks) then
-                ntasks = cell_owner(i)
+            do i=1,nCells
+                read(42,*,iostat=ierr) cell_owner(i)
+                if (ierr /= 0) then
+                    write(0,*) 'Error reading partition file '''//trim(partition_filename)//''''
+                    stop
+                end if
+                if (cell_owner(i) > ntasks) then
+                    ntasks = cell_owner(i)
+                end if 
+            end do
+            close(42)
+            ntasks = ntasks + 1
+            nparts = ntasks
+    
+            write(0,*) 'Found ', ntasks, ' tasks in partition file'
+        
+#ifdef PNETCDF_INPUT
+            ierr = nfmpi_begin_indep_data(ncid_in)
+#endif
+
+            !
+            ! Determine ownership of edges
+            !
+            allocate(nEdgesOnCell(nCells))
+            start1(1) = 1
+            count1(1) = nCells
+#ifdef PNETCDF_INPUT
+            ierr = nfmpi_inq_varid(ncid_in, 'nEdgesOnCell', nEdgesOnCellID)
+            ierr = nfmpi_get_var_int(ncid_in, nEdgesOnCellID, nEdgesOnCell)
+#endif
+#ifdef NETCDF4_INPUT
+            ierr = nf90_inq_varid(ncid_in, 'nEdgesOnCell', nEdgesOnCellID)
+            ierr = nf90_get_var(ncid_in, nEdgesOnCellID, nEdgesOnCell)
+#endif
+            if (ierr /= noerr_input) then
+                write(0,*) 'Error reading nEdgesOnCell ', ierr
+            end if
+    
+            allocate(cellsOnEdge(2,nEdges))
+#ifdef PNETCDF_INPUT
+            ierr = nfmpi_inq_varid(ncid_in, 'cellsOnEdge', cellsOnEdgeID)
+#endif
+#ifdef NETCDF4_INPUT
+            ierr = nf90_inq_varid(ncid_in, 'cellsOnEdge', cellsOnEdgeID)
+#endif
+
+            start2(1) = 1
+            count2(1) = int(2,MPI_OFFSET_KIND)
+            start2(2) = 1
+            count2(2) = min(rw_chunk_size, nEdges)
+    
+            do while (start2(2) <= int(nEdges,MPI_OFFSET_KIND)) 
+#ifdef PNETCDF_INPUT
+                ierr = nfmpi_get_vara_int(ncid_in, cellsOnEdgeID, start2, count2, &
+                                          cellsOnEdge(:,start2(2):(start2(2)+count2(2)-1)))
+#endif
+#ifdef NETCDF4_INPUT
+                ierr = nf90_get_var(ncid_in, cellsOnEdgeID, &
+                                    cellsOnEdge(:,start2(2):(start2(2)+count2(2)-1)), start=start2, count=count2)
+#endif
+                if (ierr /= noerr_input) then
+                    write(0,*) 'Error reading cellsOnEdge ', ierr
+                end if
+    
+                start2(2) = start2(2) + count2(2)
+                count2(2) = min(rw_chunk_size, nEdges - start2(2) + 1)
+            end do
+    
+    
+            allocate(edgesOnCell(maxEdges,nCells))
+#ifdef PNETCDF_INPUT
+            ierr = nfmpi_inq_varid(ncid_in, 'edgesOnCell', edgesOnCellID)
+#endif
+#ifdef NETCDF4_INPUT
+            ierr = nf90_inq_varid(ncid_in, 'edgesOnCell', edgesOnCellID)
+#endif
+
+            start2(1) = 1
+            count2(1) = int(maxEdges,MPI_OFFSET_KIND)
+            start2(2) = 1
+            count2(2) = min(rw_chunk_size, nCells)
+    
+            do while (start2(2) <= int(nCells,MPI_OFFSET_KIND)) 
+#ifdef PNETCDF_INPUT
+                ierr = nfmpi_get_vara_int(ncid_in, edgesOnCellID, start2, count2, &
+                                          edgesOnCell(:,start2(2):(start2(2)+count2(2)-1)))
+#endif
+#ifdef NETCDF4_INPUT
+                ierr = nf90_get_var(ncid_in, edgesOnCellID, &
+                                    edgesOnCell(:,start2(2):(start2(2)+count2(2)-1)), start=start2, count=count2)
+#endif
+                if (ierr /= noerr_input) then
+                    write(0,*) 'Error reading edgesOnCell ', ierr
+                end if
+    
+                start2(2) = start2(2) + count2(2)
+                count2(2) = min(rw_chunk_size, nCells - start2(2) + 1)
+            end do
+    
+            do i=1,nEdges
+                edge_owner(i) = cell_owner(cellsOnEdge(1,i))
+            end do
+    
+    
+            !
+            ! Determine ownership of vertices
+            !
+            allocate(cellsOnVertex(3,nVertices))
+#ifdef PNETCDF_INPUT
+            ierr = nfmpi_inq_varid(ncid_in, 'cellsOnVertex', cellsOnVertexID)
+#endif
+#ifdef NETCDF4_INPUT
+            ierr = nf90_inq_varid(ncid_in, 'cellsOnVertex', cellsOnVertexID)
+#endif
+
+            start2(1) = 1
+            count2(1) = int(3,MPI_OFFSET_KIND)
+            start2(2) = 1
+            count2(2) = min(rw_chunk_size, nVertices)
+    
+            do while (start2(2) <= int(nVertices,MPI_OFFSET_KIND)) 
+#ifdef PNETCDF_INPUT
+                ierr = nfmpi_get_vara_int(ncid_in, cellsOnVertexID, start2, count2, &
+                                          cellsOnVertex(:,start2(2):(start2(2)+count2(2)-1)))
+#endif
+#ifdef NETCDF4_INPUT
+                ierr = nf90_get_var(ncid_in, cellsOnVertexID, &
+                                    cellsOnVertex(:,start2(2):(start2(2)+count2(2)-1)), start=start2, count=count2)
+#endif
+                if (ierr /= noerr_input) then
+                    write(0,*) 'Error reading cellsOnVertex ', ierr
+                end if
+    
+                start2(2) = start2(2) + count2(2)
+                count2(2) = min(rw_chunk_size, nVertices - start2(2) + 1)
+            end do
+    
+    
+            allocate(verticesOnCell(maxEdges,nCells))
+#ifdef PNETCDF_INPUT
+            ierr = nfmpi_inq_varid(ncid_in, 'verticesOnCell', verticesOnCellID)
+#endif
+#ifdef NETCDF4_INPUT
+            ierr = nf90_inq_varid(ncid_in, 'verticesOnCell', verticesOnCellID)
+#endif
+
+            start2(1) = 1
+            count2(1) = int(maxEdges,MPI_OFFSET_KIND)
+            start2(2) = 1
+            count2(2) = min(rw_chunk_size, nCells)
+    
+            do while (start2(2) <= int(nCells,MPI_OFFSET_KIND)) 
+#ifdef PNETCDF_INPUT
+                ierr = nfmpi_get_vara_int(ncid_in, verticesOnCellID, start2, count2, &
+                                          verticesOnCell(:,start2(2):(start2(2)+count2(2)-1)))
+#endif
+#ifdef NETCDF4_INPUT
+                ierr = nf90_get_var(ncid_in, verticesOnCellID, &
+                                    verticesOnCell(:,start2(2):(start2(2)+count2(2)-1)), start=start2, count=count2)
+#endif
+                if (ierr /= noerr_input) then
+                    write(0,*) 'Error reading verticesOnCell ', ierr
+                end if
+    
+                start2(2) = start2(2) + count2(2)
+                count2(2) = min(rw_chunk_size, nCells - start2(2) + 1)
+            end do
+    
+            do i=1,nVertices
+                vertex_owner(i) = cell_owner(cellsOnVertex(1,i))
+            end do
+    
+            !
+            ! Determine how many cells/edges/vertices are owned by each task
+            !
+            allocate(task_ncells(ntasks))
+            allocate(task_nedges(ntasks))
+            allocate(task_nvertices(ntasks))
+    
+            task_ncells(:) = 0
+            do i=1,nCells
+                task_ncells(cell_owner(i)+1) = task_ncells(cell_owner(i)+1) + 1
+            end do
+    
+            task_nedges(:) = 0
+            do i=1,nEdges
+                task_nedges(edge_owner(i)+1) = task_nedges(edge_owner(i)+1) + 1
+            end do
+    
+            task_nvertices(:) = 0
+            do i=1,nVertices
+                task_nvertices(vertex_owner(i)+1) = task_nvertices(vertex_owner(i)+1) + 1
+            end do
+    
+            !
+            ! Write out a new graph decomposition file
+            !
+            if (ntasks < 10) then
+                write(graph_filename, '(a,i1.1)') 'permuted_graph.info.part.', ntasks
+            else if (ntasks < 100) then
+                write(graph_filename, '(a,i2.2)') 'permuted_graph.info.part.', ntasks
+            else if (ntasks < 1000) then
+                write(graph_filename, '(a,i3.3)') 'permuted_graph.info.part.', ntasks
+            else if (ntasks < 10000) then
+                write(graph_filename, '(a,i4.4)') 'permuted_graph.info.part.', ntasks
+            else if (ntasks < 100000) then
+                write(graph_filename, '(a,i5.5)') 'permuted_graph.info.part.', ntasks
+            else if (ntasks < 1000000) then
+                write(graph_filename, '(a,i6.6)') 'permuted_graph.info.part.', ntasks
+            else if (ntasks < 10000000) then
+                write(graph_filename, '(a,i7.7)') 'permuted_graph.info.part.', ntasks
             end if 
-        end do
-        close(42)
-        ntasks = ntasks + 1
-        nparts = ntasks
+    
+            open(43, file=trim(graph_filename), form='formatted')
+            do i=1,ntasks
+                do j=1,task_ncells(i)
+                    write(43,*) i-1
+                end do
+            end do
+            close(43)
+    
+    
+            !
+            ! Determine starting cell/edge/vertex index in permuted mesh for each task 
+            !
+            allocate(task_cell_start(ntasks))
+            allocate(task_edge_start(ntasks))
+            allocate(task_vertex_start(ntasks))
+    
+            task_cell_start(1) = 1
+            task_edge_start(1) = 1
+            task_vertex_start(1) = 1
+            do i=2,ntasks
+                task_cell_start(i) = task_cell_start(i-1) + task_ncells(i-1)
+                task_edge_start(i) = task_edge_start(i-1) + task_nedges(i-1)
+                task_vertex_start(i) = task_vertex_start(i-1) + task_nvertices(i-1)
+            end do
+            deallocate(task_ncells)
+            deallocate(task_nedges)
+            deallocate(task_nvertices)
+    
+            !
+            ! Determine permuted cell/edge/vertex order
+            ! (Where a new cell/edge/vertex originates from)
+            !
+            allocate(cell_order(nCells)) 
+            allocate(edge_order(nEdges)) 
+            allocate(vertex_order(nVertices)) 
+            
+            do i=1,nCells
+                cell_order(task_cell_start(cell_owner(i)+1)) = i
+                task_cell_start(cell_owner(i)+1) = task_cell_start(cell_owner(i)+1) + 1
+            end do
+    
+            call dictionary_reset()
+            do i=1,nCells
+                do j=1,nEdgesOnCell(i)
+                    k = edgesOnCell(j,i)
+                    if (cell_owner(cellsOnEdge(1,k)) == cell_owner(i)) then
+                        if (.not. dictionary_search(k)) then
+                            call dictionary_insert(k)
+                            edge_order(task_edge_start(cell_owner(i)+1)) = k
+                            task_edge_start(cell_owner(i)+1) = task_edge_start(cell_owner(i)+1) + 1
+                        end if
+                    end if
+                end do
+            end do
+    
+            call dictionary_reset()
+            do i=1,nCells
+                do j=1,nEdgesOnCell(i)
+                    k = verticesOnCell(j,i)
+                    if (cell_owner(cellsOnVertex(1,k)) == cell_owner(i)) then
+                        if (.not. dictionary_search(k)) then
+                            call dictionary_insert(k)
+                            vertex_order(task_vertex_start(cell_owner(i)+1)) = k
+                            task_vertex_start(cell_owner(i)+1) = task_vertex_start(cell_owner(i)+1) + 1
+                        end if
+                    end if
+                end do
+            end do
+    
+            deallocate(cellsOnVertex)
+            deallocate(cellsOnEdge)
+    
+            deallocate(edgesOnCell)
+            deallocate(verticesOnCell)
+            deallocate(nEdgesOnCell)
+    
+            deallocate(cell_owner)
+            deallocate(edge_owner)
+            deallocate(vertex_owner)
+    
+            deallocate(task_cell_start)
+            deallocate(task_edge_start)
+            deallocate(task_vertex_start)
 
-        write(0,*) 'Found ', ntasks, ' tasks in partition file'
-        
-#ifdef PNETCDF_INPUT
-        ierr = nfmpi_begin_indep_data(ncid_in)
-#endif
+        else
 
-        !
-        ! Determine ownership of edges
-        !
-        allocate(nEdgesOnCell(nCells))
-        start1(1) = 1
-        count1(1) = nCells
-#ifdef PNETCDF_INPUT
-        ierr = nfmpi_inq_varid(ncid_in, 'nEdgesOnCell', nEdgesOnCellID)
-        ierr = nfmpi_get_var_int(ncid_in, nEdgesOnCellID, nEdgesOnCell)
-#endif
-#ifdef NETCDF4_INPUT
-        ierr = nf90_inq_varid(ncid_in, 'nEdgesOnCell', nEdgesOnCellID)
-        ierr = nf90_get_var(ncid_in, nEdgesOnCellID, nEdgesOnCell)
-#endif
-        if (ierr /= noerr_input) then
-            write(0,*) 'Error reading nEdgesOnCell ', ierr
+            write(0,*) 'Identity permutation'
+            nparts = 0
+    
+            allocate(cell_order(nCells)) 
+            allocate(edge_order(nEdges)) 
+            allocate(vertex_order(nVertices)) 
+    
+            do i=1,nCells
+               cell_order(i) = i
+            end do
+    
+            do i=1,nEdges
+               edge_order(i) = i
+            end do
+    
+            do i=1,nVertices
+               vertex_order(i) = i
+            end do
+
         end if
-
-        allocate(cellsOnEdge(2,nEdges))
-#ifdef PNETCDF_INPUT
-        ierr = nfmpi_inq_varid(ncid_in, 'cellsOnEdge', cellsOnEdgeID)
-#endif
-#ifdef NETCDF4_INPUT
-        ierr = nf90_inq_varid(ncid_in, 'cellsOnEdge', cellsOnEdgeID)
-#endif
-
-        start2(1) = 1
-        count2(1) = int(2,MPI_OFFSET_KIND)
-        start2(2) = 1
-        count2(2) = min(rw_chunk_size, nEdges)
-
-        do while (start2(2) <= int(nEdges,MPI_OFFSET_KIND)) 
-#ifdef PNETCDF_INPUT
-            ierr = nfmpi_get_vara_int(ncid_in, cellsOnEdgeID, start2, count2, &
-                                      cellsOnEdge(:,start2(2):(start2(2)+count2(2)-1)))
-#endif
-#ifdef NETCDF4_INPUT
-            ierr = nf90_get_var(ncid_in, cellsOnEdgeID, &
-                                cellsOnEdge(:,start2(2):(start2(2)+count2(2)-1)), start=start2, count=count2)
-#endif
-            if (ierr /= noerr_input) then
-                write(0,*) 'Error reading cellsOnEdge ', ierr
-            end if
-
-            start2(2) = start2(2) + count2(2)
-            count2(2) = min(rw_chunk_size, nEdges - start2(2) + 1)
-        end do
-
-
-        allocate(edgesOnCell(maxEdges,nCells))
-#ifdef PNETCDF_INPUT
-        ierr = nfmpi_inq_varid(ncid_in, 'edgesOnCell', edgesOnCellID)
-#endif
-#ifdef NETCDF4_INPUT
-        ierr = nf90_inq_varid(ncid_in, 'edgesOnCell', edgesOnCellID)
-#endif
-
-        start2(1) = 1
-        count2(1) = int(maxEdges,MPI_OFFSET_KIND)
-        start2(2) = 1
-        count2(2) = min(rw_chunk_size, nCells)
-
-        do while (start2(2) <= int(nCells,MPI_OFFSET_KIND)) 
-#ifdef PNETCDF_INPUT
-            ierr = nfmpi_get_vara_int(ncid_in, edgesOnCellID, start2, count2, &
-                                      edgesOnCell(:,start2(2):(start2(2)+count2(2)-1)))
-#endif
-#ifdef NETCDF4_INPUT
-            ierr = nf90_get_var(ncid_in, edgesOnCellID, &
-                                edgesOnCell(:,start2(2):(start2(2)+count2(2)-1)), start=start2, count=count2)
-#endif
-            if (ierr /= noerr_input) then
-                write(0,*) 'Error reading edgesOnCell ', ierr
-            end if
-
-            start2(2) = start2(2) + count2(2)
-            count2(2) = min(rw_chunk_size, nCells - start2(2) + 1)
-        end do
-
-        do i=1,nEdges
-            edge_owner(i) = cell_owner(cellsOnEdge(1,i))
-        end do
-
-
-        !
-        ! Determine ownership of vertices
-        !
-        allocate(cellsOnVertex(3,nVertices))
-#ifdef PNETCDF_INPUT
-        ierr = nfmpi_inq_varid(ncid_in, 'cellsOnVertex', cellsOnVertexID)
-#endif
-#ifdef NETCDF4_INPUT
-        ierr = nf90_inq_varid(ncid_in, 'cellsOnVertex', cellsOnVertexID)
-#endif
-
-        start2(1) = 1
-        count2(1) = int(3,MPI_OFFSET_KIND)
-        start2(2) = 1
-        count2(2) = min(rw_chunk_size, nVertices)
-
-        do while (start2(2) <= int(nVertices,MPI_OFFSET_KIND)) 
-#ifdef PNETCDF_INPUT
-            ierr = nfmpi_get_vara_int(ncid_in, cellsOnVertexID, start2, count2, &
-                                      cellsOnVertex(:,start2(2):(start2(2)+count2(2)-1)))
-#endif
-#ifdef NETCDF4_INPUT
-            ierr = nf90_get_var(ncid_in, cellsOnVertexID, &
-                                cellsOnVertex(:,start2(2):(start2(2)+count2(2)-1)), start=start2, count=count2)
-#endif
-            if (ierr /= noerr_input) then
-                write(0,*) 'Error reading cellsOnVertex ', ierr
-            end if
-
-            start2(2) = start2(2) + count2(2)
-            count2(2) = min(rw_chunk_size, nVertices - start2(2) + 1)
-        end do
-
-
-        allocate(verticesOnCell(maxEdges,nCells))
-#ifdef PNETCDF_INPUT
-        ierr = nfmpi_inq_varid(ncid_in, 'verticesOnCell', verticesOnCellID)
-#endif
-#ifdef NETCDF4_INPUT
-        ierr = nf90_inq_varid(ncid_in, 'verticesOnCell', verticesOnCellID)
-#endif
-
-        start2(1) = 1
-        count2(1) = int(maxEdges,MPI_OFFSET_KIND)
-        start2(2) = 1
-        count2(2) = min(rw_chunk_size, nCells)
-
-        do while (start2(2) <= int(nCells,MPI_OFFSET_KIND)) 
-#ifdef PNETCDF_INPUT
-            ierr = nfmpi_get_vara_int(ncid_in, verticesOnCellID, start2, count2, &
-                                      verticesOnCell(:,start2(2):(start2(2)+count2(2)-1)))
-#endif
-#ifdef NETCDF4_INPUT
-            ierr = nf90_get_var(ncid_in, verticesOnCellID, &
-                                verticesOnCell(:,start2(2):(start2(2)+count2(2)-1)), start=start2, count=count2)
-#endif
-            if (ierr /= noerr_input) then
-                write(0,*) 'Error reading verticesOnCell ', ierr
-            end if
-
-            start2(2) = start2(2) + count2(2)
-            count2(2) = min(rw_chunk_size, nCells - start2(2) + 1)
-        end do
-
-        do i=1,nVertices
-            vertex_owner(i) = cell_owner(cellsOnVertex(1,i))
-        end do
-
-        !
-        ! Determine how many cells/edges/vertices are owned by each task
-        !
-        allocate(task_ncells(ntasks))
-        allocate(task_nedges(ntasks))
-        allocate(task_nvertices(ntasks))
-
-        task_ncells(:) = 0
-        do i=1,nCells
-            task_ncells(cell_owner(i)+1) = task_ncells(cell_owner(i)+1) + 1
-        end do
-
-        task_nedges(:) = 0
-        do i=1,nEdges
-            task_nedges(edge_owner(i)+1) = task_nedges(edge_owner(i)+1) + 1
-        end do
-
-        task_nvertices(:) = 0
-        do i=1,nVertices
-            task_nvertices(vertex_owner(i)+1) = task_nvertices(vertex_owner(i)+1) + 1
-        end do
-
-        !
-        ! Write out a new graph decomposition file
-        !
-        if (ntasks < 10) then
-            write(graph_filename, '(a,i1.1)') 'permuted_graph.info.part.', ntasks
-        else if (ntasks < 100) then
-            write(graph_filename, '(a,i2.2)') 'permuted_graph.info.part.', ntasks
-        else if (ntasks < 1000) then
-            write(graph_filename, '(a,i3.3)') 'permuted_graph.info.part.', ntasks
-        else if (ntasks < 10000) then
-            write(graph_filename, '(a,i4.4)') 'permuted_graph.info.part.', ntasks
-        else if (ntasks < 100000) then
-            write(graph_filename, '(a,i5.5)') 'permuted_graph.info.part.', ntasks
-        else if (ntasks < 1000000) then
-            write(graph_filename, '(a,i6.6)') 'permuted_graph.info.part.', ntasks
-        else if (ntasks < 10000000) then
-            write(graph_filename, '(a,i7.7)') 'permuted_graph.info.part.', ntasks
-        end if 
-
-        open(43, file=trim(graph_filename), form='formatted')
-        do i=1,ntasks
-            do j=1,task_ncells(i)
-                write(43,*) i-1
-            end do
-        end do
-        close(43)
-
-
-        !
-        ! Determine starting cell/edge/vertex index in permuted mesh for each task 
-        !
-        allocate(task_cell_start(ntasks))
-        allocate(task_edge_start(ntasks))
-        allocate(task_vertex_start(ntasks))
-
-        task_cell_start(1) = 1
-        task_edge_start(1) = 1
-        task_vertex_start(1) = 1
-        do i=2,ntasks
-            task_cell_start(i) = task_cell_start(i-1) + task_ncells(i-1)
-            task_edge_start(i) = task_edge_start(i-1) + task_nedges(i-1)
-            task_vertex_start(i) = task_vertex_start(i-1) + task_nvertices(i-1)
-        end do
-        deallocate(task_ncells)
-        deallocate(task_nedges)
-        deallocate(task_nvertices)
-
-        !
-        ! Determine permuted cell/edge/vertex order
-        ! (Where a new cell/edge/vertex originates from)
-        !
-        allocate(cell_order(nCells)) 
-        allocate(edge_order(nEdges)) 
-        allocate(vertex_order(nVertices)) 
-        
-        do i=1,nCells
-            cell_order(task_cell_start(cell_owner(i)+1)) = i
-            task_cell_start(cell_owner(i)+1) = task_cell_start(cell_owner(i)+1) + 1
-        end do
-
-        call dictionary_reset()
-        do i=1,nCells
-            do j=1,nEdgesOnCell(i)
-                k = edgesOnCell(j,i)
-                if (cell_owner(cellsOnEdge(1,k)) == cell_owner(i)) then
-                    if (.not. dictionary_search(k)) then
-                        call dictionary_insert(k)
-                        edge_order(task_edge_start(cell_owner(i)+1)) = k
-                        task_edge_start(cell_owner(i)+1) = task_edge_start(cell_owner(i)+1) + 1
-                    end if
-                end if
-            end do
-        end do
-
-        call dictionary_reset()
-        do i=1,nCells
-            do j=1,nEdgesOnCell(i)
-                k = verticesOnCell(j,i)
-                if (cell_owner(cellsOnVertex(1,k)) == cell_owner(i)) then
-                    if (.not. dictionary_search(k)) then
-                        call dictionary_insert(k)
-                        vertex_order(task_vertex_start(cell_owner(i)+1)) = k
-                        task_vertex_start(cell_owner(i)+1) = task_vertex_start(cell_owner(i)+1) + 1
-                    end if
-                end if
-            end do
-        end do
-
-        deallocate(cellsOnVertex)
-        deallocate(cellsOnEdge)
-
-        deallocate(edgesOnCell)
-        deallocate(verticesOnCell)
-        deallocate(nEdgesOnCell)
-
-        deallocate(cell_owner)
-        deallocate(edge_owner)
-        deallocate(vertex_owner)
-
-        deallocate(task_cell_start)
-        deallocate(task_edge_start)
-        deallocate(task_vertex_start)
 
 
         !
