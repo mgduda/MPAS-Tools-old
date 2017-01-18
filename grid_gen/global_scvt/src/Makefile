@@ -28,7 +28,7 @@ module_voronoi_utils.o: module_grid_constants.o STRIPACK.o
 
 
 .F.o:
-	cpp -C -P -traditional $(CPPFLAGS) $< > $*.f90
+	cpp $(CPPFLAGS) $< > $*.f90
 	$(FC) $(FFLAGS) $(PROMOTION) -c $*.f90 -I$(NETCDF)/include
 	rm -f $*.f90
 

@@ -91,12 +91,14 @@ program grid_gen
    if (locs_as_xyz) then
       read(22,*)
       do i=1,n
-         read(22,'(10x,f22.10,f23.10,f23.10)') x(i), y(i), z(i)
+         read(22,*) x(i), y(i), z(i)
       end do
       call trans_inv(x, y, z, rlat, rlon, n)
    else
       do i=1,n
-         read(22,'(f13.10,1x,f13.10)') rlat(i), rlon(i)
+         read(22,*) rlat(i), rlon(i)
+         rlat(i) = rlat(i) * pi / 180.0
+         rlon(i) = rlon(i) * pi / 180.0
       end do
    end if
    close(22)

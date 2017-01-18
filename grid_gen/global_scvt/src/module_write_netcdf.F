@@ -116,16 +116,6 @@ module write_netcdf
 
       nferr = nf_put_att_text(wr_ncid, NF_GLOBAL, 'on_a_sphere', 16, on_a_sphere)
       nferr = nf_put_att_double(wr_ncid, NF_GLOBAL, 'sphere_radius', NF_DOUBLE, 1, sphere_radius)
-      nferr = nf_put_att_int(wr_ncid, NF_GLOBAL, 'np', NF_INT, 1, np)
-      nferr = nf_put_att_int(wr_ncid, NF_GLOBAL, 'n_scvt_iterations', NF_INT, 1, n_scvt_iterations)
-      nferr = nf_put_att_double(wr_ncid, NF_GLOBAL, 'eps', NF_DOUBLE, 1, eps)
-      if(l2_conv) then
-        nferr = nf_put_att_text(wr_ncid, NF_GLOBAL, 'Convergence',2,'L2')
-      elseif(inf_conv) then
-        nferr = nf_put_att_text(wr_ncid, NF_GLOBAL, 'Convergence',3,'INF')
-      else
-        nferr = nf_put_att_text(wr_ncid, NF_GLOBAL, 'Convergence',7,'MaxIter')
-      endif
 
       !
       ! Define dimensions
@@ -134,12 +124,7 @@ module write_netcdf
       nferr = nf_def_dim(wr_ncid, 'nEdges', nEdges, wrDimIDnEdges)
       nferr = nf_def_dim(wr_ncid, 'nVertices', nVertices, wrDimIDnVertices)
       nferr = nf_def_dim(wr_ncid, 'maxEdges', maxEdges, wrDimIDmaxEdges)
-      nferr = nf_def_dim(wr_ncid, 'maxEdges2', 2*maxEdges, wrDimIDmaxEdges2)
-      nferr = nf_def_dim(wr_ncid, 'TWO', 2, wrDimIDTWO)
       nferr = nf_def_dim(wr_ncid, 'vertexDegree', 3, wrDimIDvertexDegree)
-      nferr = nf_def_dim(wr_ncid, 'nVertLevels', nVertLevels, wrDimIDnVertLevels)
-      nferr = nf_def_dim(wr_ncid, 'nTracers', nTracers, wrDimIDnTracers)
-      nferr = nf_def_dim(wr_ncid, 'Time', NF_UNLIMITED, wrDimIDTime)
  
       !
       ! Define variables
@@ -148,66 +133,12 @@ module write_netcdf
       nferr = nf_def_var(wr_ncid, 'latCell', NF_DOUBLE,  1, dimlist, wrVarIDlatCell)
       dimlist( 1) = wrDimIDnCells
       nferr = nf_def_var(wr_ncid, 'lonCell', NF_DOUBLE,  1, dimlist, wrVarIDlonCell)
-      dimlist( 1) = wrDimIDnCells
-      nferr = nf_def_var(wr_ncid, 'meshDensity', NF_DOUBLE,  1, dimlist, wrVarIDmeshDensity)
-      dimlist( 1) = wrDimIDnCells
-      nferr = nf_def_var(wr_ncid, 'xCell', NF_DOUBLE,  1, dimlist, wrVarIDxCell)
-      dimlist( 1) = wrDimIDnCells
-      nferr = nf_def_var(wr_ncid, 'yCell', NF_DOUBLE,  1, dimlist, wrVarIDyCell)
-      dimlist( 1) = wrDimIDnCells
-      nferr = nf_def_var(wr_ncid, 'zCell', NF_DOUBLE,  1, dimlist, wrVarIDzCell)
-      dimlist( 1) = wrDimIDnCells
-      nferr = nf_def_var(wr_ncid, 'indexToCellID', NF_INT,  1, dimlist, wrVarIDindexToCellID)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'latEdge', NF_DOUBLE,  1, dimlist, wrVarIDlatEdge)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'lonEdge', NF_DOUBLE,  1, dimlist, wrVarIDlonEdge)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'xEdge', NF_DOUBLE,  1, dimlist, wrVarIDxEdge)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'yEdge', NF_DOUBLE,  1, dimlist, wrVarIDyEdge)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'zEdge', NF_DOUBLE,  1, dimlist, wrVarIDzEdge)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'indexToEdgeID', NF_INT,  1, dimlist, wrVarIDindexToEdgeID)
       dimlist( 1) = wrDimIDnVertices
       nferr = nf_def_var(wr_ncid, 'latVertex', NF_DOUBLE,  1, dimlist, wrVarIDlatVertex)
       dimlist( 1) = wrDimIDnVertices
       nferr = nf_def_var(wr_ncid, 'lonVertex', NF_DOUBLE,  1, dimlist, wrVarIDlonVertex)
-      dimlist( 1) = wrDimIDnVertices
-      nferr = nf_def_var(wr_ncid, 'xVertex', NF_DOUBLE,  1, dimlist, wrVarIDxVertex)
-      dimlist( 1) = wrDimIDnVertices
-      nferr = nf_def_var(wr_ncid, 'yVertex', NF_DOUBLE,  1, dimlist, wrVarIDyVertex)
-      dimlist( 1) = wrDimIDnVertices
-      nferr = nf_def_var(wr_ncid, 'zVertex', NF_DOUBLE,  1, dimlist, wrVarIDzVertex)
-      dimlist( 1) = wrDimIDnVertices
-      nferr = nf_def_var(wr_ncid, 'indexToVertexID', NF_INT,  1, dimlist, wrVarIDindexToVertexID)
-      dimlist( 1) = wrDimIDTWO
-      dimlist( 2) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'cellsOnEdge', NF_INT,  2, dimlist, wrVarIDcellsOnEdge)
       dimlist( 1) = wrDimIDnCells
       nferr = nf_def_var(wr_ncid, 'nEdgesOnCell', NF_INT,  1, dimlist, wrVarIDnEdgesOnCell)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'nEdgesOnEdge', NF_INT,  1, dimlist, wrVarIDnEdgesOnEdge)
-      dimlist( 1) = wrDimIDmaxEdges
-      dimlist( 2) = wrDimIDnCells
-      nferr = nf_def_var(wr_ncid, 'edgesOnCell', NF_INT,  2, dimlist, wrVarIDedgesOnCell)
-      dimlist( 1) = wrDimIDmaxEdges2
-      dimlist( 2) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'edgesOnEdge', NF_INT,  2, dimlist, wrVarIDedgesOnEdge)
-      dimlist( 1) = wrDimIDmaxEdges2
-      dimlist( 2) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'weightsOnEdge', NF_DOUBLE,  2, dimlist, wrVarIDweightsOnEdge)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'dvEdge', NF_DOUBLE,  1, dimlist, wrVarIDdvEdge)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'dv1Edge', NF_DOUBLE,  1, dimlist, wrVarIDdv1Edge)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'dv2Edge', NF_DOUBLE,  1, dimlist, wrVarIDdv2Edge)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'dcEdge', NF_DOUBLE,  1, dimlist, wrVarIDdcEdge)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'angleEdge', NF_DOUBLE,  1, dimlist, wrVarIDangleEdge)
       dimlist( 1) = wrDimIDnCells
       nferr = nf_def_var(wr_ncid, 'areaCell', NF_DOUBLE,  1, dimlist, wrVarIDareaCell)
       dimlist( 1) = wrDimIDnVertices
@@ -218,57 +149,9 @@ module write_netcdf
       dimlist( 1) = wrDimIDmaxEdges
       dimlist( 2) = wrDimIDnCells
       nferr = nf_def_var(wr_ncid, 'verticesOnCell', NF_INT,  2, dimlist, wrVarIDverticesOnCell)
-      dimlist( 1) = wrDimIDTWO
-      dimlist( 2) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'verticesOnEdge', NF_INT,  2, dimlist, wrVarIDverticesOnEdge)
-      dimlist( 1) = wrDimIDvertexDegree
-      dimlist( 2) = wrDimIDnVertices
-      nferr = nf_def_var(wr_ncid, 'edgesOnVertex', NF_INT,  2, dimlist, wrVarIDedgesOnVertex)
       dimlist( 1) = wrDimIDvertexDegree
       dimlist( 2) = wrDimIDnVertices
       nferr = nf_def_var(wr_ncid, 'cellsOnVertex', NF_INT,  2, dimlist, wrVarIDcellsOnVertex)
-      dimlist( 1) = wrDimIDvertexDegree
-      dimlist( 2) = wrDimIDnVertices
-      nferr = nf_def_var(wr_ncid, 'kiteAreasOnVertex', NF_DOUBLE,  2, dimlist, wrVarIDkiteAreasOnVertex)
-      dimlist( 1) = wrDimIDnEdges
-      nferr = nf_def_var(wr_ncid, 'fEdge', NF_DOUBLE,  1, dimlist, wrVarIDfEdge)
-      dimlist( 1) = wrDimIDnVertices
-      nferr = nf_def_var(wr_ncid, 'fVertex', NF_DOUBLE,  1, dimlist, wrVarIDfVertex)
-      dimlist( 1) = wrDimIDnCells
-      nferr = nf_def_var(wr_ncid, 'h_s', NF_DOUBLE,  1, dimlist, wrVarIDh_s)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnEdges
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'u', NF_DOUBLE,  3, dimlist, wrVarIDu)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnEdges
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'v', NF_DOUBLE,  3, dimlist, wrVarIDv)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnCells
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'h', NF_DOUBLE,  3, dimlist, wrVarIDh)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnEdges
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'vh', NF_DOUBLE,  3, dimlist, wrVarIDvh)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnVertices
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'circulation', NF_DOUBLE,  3, dimlist, wrVarIDcirculation)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnVertices
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'vorticity', NF_DOUBLE,  3, dimlist, wrVarIDvorticity)
-      dimlist( 1) = wrDimIDnVertLevels
-      dimlist( 2) = wrDimIDnCells
-      dimlist( 3) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'ke', NF_DOUBLE,  3, dimlist, wrVarIDke)
-      dimlist( 1) = wrDimIDnTracers
-      dimlist( 2) = wrDimIDnVertLevels
-      dimlist( 3) = wrDimIDnCells
-      dimlist( 4) = wrDimIDTime
-      nferr = nf_def_var(wr_ncid, 'tracers', NF_DOUBLE,  4, dimlist, wrVarIDtracers)
  
       nferr = nf_enddef(wr_ncid)
  
@@ -412,50 +295,6 @@ module write_netcdf
       nferr = nf_put_vara_double(wr_ncid, wrVarIDlonCell, start1, count1, lonCell)
  
       start1(1) = 1
-      count1( 1) = wrLocalnCells
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDmeshDensity, start1, count1, meshDensity)
-
-      start1(1) = 1
-      count1( 1) = wrLocalnCells
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDxCell, start1, count1, xCell)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnCells
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDyCell, start1, count1, yCell)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnCells
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDzCell, start1, count1, zCell)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnCells
-      nferr = nf_put_vara_int(wr_ncid, wrVarIDindexToCellID, start1, count1, indexToCellID)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDlatEdge, start1, count1, latEdge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDlonEdge, start1, count1, lonEdge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDxEdge, start1, count1, xEdge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDyEdge, start1, count1, yEdge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDzEdge, start1, count1, zEdge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_int(wr_ncid, wrVarIDindexToEdgeID, start1, count1, indexToEdgeID)
- 
-      start1(1) = 1
       count1( 1) = wrLocalnVertices
       nferr = nf_put_vara_double(wr_ncid, wrVarIDlatVertex, start1, count1, latVertex)
  
@@ -464,68 +303,8 @@ module write_netcdf
       nferr = nf_put_vara_double(wr_ncid, wrVarIDlonVertex, start1, count1, lonVertex)
  
       start1(1) = 1
-      count1( 1) = wrLocalnVertices
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDxVertex, start1, count1, xVertex)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnVertices
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDyVertex, start1, count1, yVertex)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnVertices
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDzVertex, start1, count1, zVertex)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnVertices
-      nferr = nf_put_vara_int(wr_ncid, wrVarIDindexToVertexID, start1, count1, indexToVertexID)
- 
-      start2(2) = 1
-      count2( 1) = 2
-      count2( 2) = wrLocalnEdges
-      nferr = nf_put_vara_int(wr_ncid, wrVarIDcellsOnEdge, start2, count2, cellsOnEdge)
- 
-      start1(1) = 1
       count1( 1) = wrLocalnCells
       nferr = nf_put_vara_int(wr_ncid, wrVarIDnEdgesOnCell, start1, count1, nEdgesOnCell)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_int(wr_ncid, wrVarIDnEdgesOnEdge, start1, count1, nEdgesOnEdge)
- 
-      start2(2) = 1
-      count2( 1) = wrLocalmaxEdges
-      count2( 2) = wrLocalnCells
-      nferr = nf_put_vara_int(wr_ncid, wrVarIDedgesOnCell, start2, count2, edgesOnCell)
- 
-      start2(2) = 1
-      count2( 1) = 2*wrLocalmaxEdges
-      count2( 2) = wrLocalnEdges
-      nferr = nf_put_vara_int(wr_ncid, wrVarIDedgesOnEdge, start2, count2, edgesOnEdge)
- 
-      start2(2) = 1
-      count2( 1) = 2*wrLocalmaxEdges
-      count2( 2) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDweightsOnEdge, start2, count2, weightsOnEdge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDdvEdge, start1, count1, dvEdge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDdv1Edge, start1, count1, dv1Edge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDdv2Edge, start1, count1, dv2Edge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDdcEdge, start1, count1, dcEdge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDangleEdge, start1, count1, angleEdge)
  
       start1(1) = 1
       count1( 1) = wrLocalnCells
@@ -546,86 +325,9 @@ module write_netcdf
       nferr = nf_put_vara_int(wr_ncid, wrVarIDverticesOnCell, start2, count2, verticesOnCell)
  
       start2(2) = 1
-      count2( 1) = 2
-      count2( 2) = wrLocalnEdges
-      nferr = nf_put_vara_int(wr_ncid, wrVarIDverticesOnEdge, start2, count2, verticesOnEdge)
- 
-      start2(2) = 1
-      count2( 1) = 3
-      count2( 2) = wrLocalnVertices
-      nferr = nf_put_vara_int(wr_ncid, wrVarIDedgesOnVertex, start2, count2, edgesOnVertex)
- 
-      start2(2) = 1
       count2( 1) = 3
       count2( 2) = wrLocalnVertices
       nferr = nf_put_vara_int(wr_ncid, wrVarIDcellsOnVertex, start2, count2, cellsOnVertex)
- 
-      start2(2) = 1
-      count2( 1) = 3
-      count2( 2) = wrLocalnVertices
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDkiteAreasOnVertex, start2, count2, kiteAreasOnVertex)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnEdges
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDfEdge, start1, count1, fEdge)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnVertices
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDfVertex, start1, count1, fVertex)
- 
-      start1(1) = 1
-      count1( 1) = wrLocalnCells
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDh_s, start1, count1, h_s)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnEdges
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDu, start3, count3, u)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnEdges
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDv, start3, count3, v)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnCells
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDh, start3, count3, h)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnEdges
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDvh, start3, count3, vh)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnVertices
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDcirculation, start3, count3, circulation)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnVertices
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDvorticity, start3, count3, vorticity)
- 
-      start3(3) = time
-      count3( 1) = wrLocalnVertLevels
-      count3( 2) = wrLocalnCells
-      count3( 3) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDke, start3, count3, ke)
- 
-      start4(4) = time
-      count4( 1) = wrLocalnTracers
-      count4( 2) = wrLocalnVertLevels
-      count4( 3) = wrLocalnCells
-      count4( 4) = 1
-      nferr = nf_put_vara_double(wr_ncid, wrVarIDtracers, start4, count4, tracers)
- 
  
    end subroutine write_netcdf_fields
  

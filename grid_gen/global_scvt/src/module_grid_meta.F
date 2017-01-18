@@ -123,10 +123,15 @@ module grid_meta
       !
       ! Determine lat/lon for each cell
       !
+      open(61,file='density.dat',status='unknown',form='formatted')
       do i=1,nCells
          latCell(i) = rlat(i)
          lonCell(i) = rlon(i)
+         center % lat = latCell(i)
+         center % lon = lonCell(i)
+         write(61,'(f17.15)') density_for_point(center)
       end do
+      close(61)
 
 
       !
@@ -143,8 +148,22 @@ module grid_meta
       !
       nullify(treeRoot)
       do i=1,nCells
+!write(6,'(a,i7,1x,f12.8,1x,f12.8)') 'Processing cell ', i, latCell(i), lonCell(i)
+         areaCell(i) = 0.0
+         nEdgesOnCell(i) = 0
+         cell1GP % lat = latCell(i)
+         cell1GP % lon = lonCell(i)
          do j = clist % start(i), clist % start(i) + clist % len(i) - 2 
+!write(6,'(a,f12.8,1x,f12.8)') '   corner ', latVertex(clist % neighbor(j)), lonVertex(clist % neighbor(j))
             js = j+1
+            cell2GP % lat = latVertex(clist % neighbor(j))
+            cell2GP % lon = lonVertex(clist % neighbor(j))
+            cell3GP % lat = latVertex(clist % neighbor(js))
+            cell3GP % lon = lonVertex(clist % neighbor(js))
+            areaCell(i) = areaCell(i) + triangle_area(cell1GP, cell2GP, cell3GP, 1.0)
+            nEdgesOnCell(i) = nEdgesOnCell(i) + 1
+            verticesOnCell(nEdgesOnCell(i),i) = clist % neighbor(j)
+
             call insert_edge_to_tree(i, &
                                      clist % neighbor(j), clist % neighbor(js), &
                                      vclat(clist % neighbor(j)), vclon(clist % neighbor(j)),   &
@@ -153,90 +172,20 @@ module grid_meta
          end do
    
          js = clist % start(i)
+         cell2GP % lat = latVertex(clist % neighbor(j))
+         cell2GP % lon = lonVertex(clist % neighbor(j))
+         cell3GP % lat = latVertex(clist % neighbor(js))
+         cell3GP % lon = lonVertex(clist % neighbor(js))
+         areaCell(i) = areaCell(i) + triangle_area(cell1GP, cell2GP, cell3GP, 1.0)
+         nEdgesOnCell(i) = nEdgesOnCell(i) + 1
+         verticesOnCell(nEdgesOnCell(i),i) = clist % neighbor(j)
+
          call insert_edge_to_tree(i, &
                                   clist % neighbor(j), clist % neighbor(js), &
                                   vclat(clist % neighbor(j)), vclon(clist % neighbor(j)),   &
                                   vclat(clist % neighbor(js)), vclon(clist % neighbor(js)), &
                                   treeRoot)
-      end do
-
-
-      !
-      ! Determine which cells are on each edge, and lat/lon of edge endpoints
-      !
-      i = 1
-      j = 1
-      cursor(i) % p => treeRoot
-      cursor(i) % stage = 0
-      do while (i > 0)
-         if (associated(cursor(i) % p % left) .and. cursor(i) % stage < 1) then
-            cursor(i) % stage = 1
-            i = i + 1
-            cursor(i) % p => cursor(i-1) % p % left
-            cursor(i) % stage = 0
-            cycle
-         end if
-         if (cursor(i) % stage < 2) then
-            cellsOnEdge(1,j) = cursor(i) % p % node1
-            cellsOnEdge(2,j) = cursor(i) % p % node2
-            lat1Edge(j) = cursor(i) % p % lat1
-            lon1Edge(j) = cursor(i) % p % lon1
-            lat2Edge(j) = cursor(i) % p % lat2
-            lon2Edge(j) = cursor(i) % p % lon2
-            verticesOnEdge(1,j) = cursor(i) % p % vertex1
-            verticesOnEdge(2,j) = cursor(i) % p % vertex2
-            j = j + 1
-            cursor(i) % stage = 2
-         end if
-         if (associated(cursor(i) % p % right) .and. cursor(i) % stage < 3) then
-            cursor(i) % stage = 3
-            i = i + 1
-            cursor(i) % p => cursor(i-1) % p % right
-            cursor(i) % stage = 0
-            cycle
-         end if
-         i = i - 1
-      end do
-
-     
-      !
-      ! Compute distance between cell centroids for each edge
-      !
-      do i=1,nEdges
-         cell1GP % lat = latCell(cellsOnEdge(1,i))
-         cell1GP % lon = lonCell(cellsOnEdge(1,i))
-         cell2GP % lat = latCell(cellsOnEdge(2,i))
-         cell2GP % lon = lonCell(cellsOnEdge(2,i))
-         dcEdge(i) = sphere_distance(cell1GP, cell2GP, 1.0)
-      end do
-
-      
-      !
-      ! Determine which edges are on each cell
-      !
-      do i=1,nCells
-         nEdgesOnCell(i) = 0
-      end do
-
-      do j=1,nEdges
-         nEdgesOnCell(cellsOnEdge(1,j)) = nEdgesOnCell(cellsOnEdge(1,j)) + 1
-         if (nEdgesOnCell(cellsOnEdge(1,j)) > maxEdges) then
-            write(0,*) 'Houston, we have an edge problem.'
-            stop
-         end if
-         edgesOnCell(nEdgesOnCell(cellsOnEdge(1,j)),cellsOnEdge(1,j)) = j
-
-         nEdgesOnCell(cellsOnEdge(2,j)) = nEdgesOnCell(cellsOnEdge(2,j)) + 1
-         if (nEdgesOnCell(cellsOnEdge(2,j)) > maxEdges) then
-            write(0,*) 'Houston, we have an edge problem.'
-            stop
-         end if
-         edgesOnCell(nEdgesOnCell(cellsOnEdge(2,j)),cellsOnEdge(2,j)) = j
-      end do
-      do i=1,nCells
-         do j=nEdgesOnCell(i)+1,maxEdges
-            edgesOnCell(j,i) = edgesOnCell(nEdgesOnCell(i),i)
-         end do
+!write(0,*) 'areaCell = ', areaCell(i)
       end do
 
 
@@ -254,200 +203,27 @@ module grid_meta
          end do
       end do
 
-      ! Re-order edgesOnCell to be in the same order as cellsOnCell
-      do i=1,nCells
-         do j=1,nEdgesOnCell(i)
-            if (cellsOnEdge(1,edgesOnCell(j,i)) /= cellsOnCell(j,i) .and. cellsOnEdge(2,edgesOnCell(j,i)) /= cellsOnCell(j,i)) then
-               ii = 0
-               do k=j+1,nEdgesOnCell(i)
-                  if (cellsOnEdge(1,edgesOnCell(k,i)) == cellsOnCell(j,i) .or. cellsOnEdge(2,edgesOnCell(k,i)) == cellsOnCell(j,i)) then
-                     ! Swap edgesOnCell(k,i) and edgesOnCell(j,i)
-                     ii = edgesOnCell(j,i)
-                     edgesOnCell(j,i) = edgesOnCell(k,i)
-                     edgesOnCell(k,i) = ii
-                     exit
-                  end if
-               end do
-if (ii == 0) then
-   write(0,*) 'We didn''t find an edge to match cellsOnCell'
-   stop
-end if
-            end if
-         end do
-      end do
    
-   
-      !
-      ! Compute lat/lon of each edge
-      !
-      do j=1,nEdges
-         vertex1GP % lat = lat1Edge(j)
-         vertex1GP % lon = lon1Edge(j)
-         vertex2GP % lat = lat2Edge(j)
-         vertex2GP % lon = lon2Edge(j)
-         cell1GP % lat = latCell(cellsOnEdge(1,j))
-         cell1GP % lon = lonCell(cellsOnEdge(1,j))
-         cell2GP % lat = latCell(cellsOnEdge(2,j))
-         cell2GP % lon = lonCell(cellsOnEdge(2,j))
-         call compute_edge_latlon(cell1GP, cell2GP, vertex1GP, vertex2GP, edgeGP)
-
-         dvEdge(j) = sphere_distance(vertex1GP, vertex2GP, 1.0)
-         rtmp = (vertex2GP % lat - vertex1GP % lat) / dvEdge(j)
-         if (rtmp > 1.0) rtmp = 1.0
-         if (rtmp < -1.0) rtmp = -1.0
-         rtmp = acos(rtmp)
-         angleEdge(j) = meridian_angle(edgeGP, vertex2GP) 
-         angleEdge(j) = sign(rtmp, angleEdge(j))
-         if (angleEdge(j) > pii) angleEdge(j) = angleEdge(j) - 2.0*pii
-         if (angleEdge(j) < -pii) angleEdge(j) = angleEdge(j) + 2.0*pii
-         latEdge(j) = edgeGP % lat 
-         lonEdge(j) = edgeGP % lon 
-
-         ! Compute u for solid body rotation
-         u_sbr(j) = (sin(vertex2GP % lat) - sin(vertex1GP % lat)) / dvEdge(j)
-
-         ! Make sure order of vertices on edge is correct
-!         if (is_flipped_vertex_order2(edgeGP, cell2GP, vertex2GP)) then
-         if (is_flipped_vertex_order(cell1GP % lat, cell1GP % lon, &
-                                     cell2GP % lat, cell2GP % lon, &
-                                     vertex1GP % lat, vertex1GP % lon, &
-                                     vertex2GP % lat, vertex2GP % lon)) then
-            temp = verticesOnEdge(1,j)
-            verticesOnEdge(1,j) = verticesOnEdge(2,j)
-            verticesOnEdge(2,j) = temp
-            u_sbr(j) = -1.0*u_sbr(j)
-            angleEdge(j) = angleEdge(j) + pii
-            if (angleEdge(j) > pii) angleEdge(j) = angleEdge(j) - 2.0*pii
-            if (angleEdge(j) < -pii) angleEdge(j) = angleEdge(j) + 2.0*pii
-         end if
-
-      end do
-
- 
-      !
-      ! Determine which vertices are on each cell
-      !
-      do i=1,nCells
-         if (i == cellsOnEdge(1,edgesOnCell(1,i))) then
-            verticesOnCell(1,i) = verticesOnEdge(1,edgesOnCell(1,i))
-         else if (i == cellsOnEdge(2,edgesOnCell(1,i))) then
-            verticesOnCell(1,i) = verticesOnEdge(2,edgesOnCell(1,i))
-         else
-write(0,*) 'THIS EDGE SHOULDN''T BELONG TO THIS CELL'
-         end if
-         do j=1,nEdgesOnCell(i)-1
-            if (verticesOnEdge(1,edgesOnCell(j,i)) == verticesOnCell(j,i)) then
-               verticesOnCell(j+1,i) = verticesOnEdge(2,edgesOnCell(j,i))
-            else if (verticesOnEdge(2,edgesOnCell(j,i)) == verticesOnCell(j,i)) then
-               verticesOnCell(j+1,i) = verticesOnEdge(1,edgesOnCell(j,i))
-            else
-write(0,*) 'Broken chain of vertex-edge-vertex.'
-stop
-            end if
-         end do
-      end do
-
-
-      !
-      ! Determine which edges are incident with each vertex
-      !
-      nEdgesOnVertex(:) = 0
-      do j=1,nEdges
-         nEdgesOnVertex(verticesOnEdge(1,j)) = nEdgesOnVertex(verticesOnEdge(1,j)) + 1
-         if (nEdgesOnVertex(verticesOnEdge(1,j)) > 3) then
-            write(0,*) 'We have too many edges incident with vertex ',verticesOnEdge(1,j)
-            stop
-         end if
-         edgesOnVertex(nEdgesOnVertex(verticesOnEdge(1,j)),verticesOnEdge(1,j)) = j
-
-         nEdgesOnVertex(verticesOnEdge(2,j)) = nEdgesOnVertex(verticesOnEdge(2,j)) + 1
-         if (nEdgesOnVertex(verticesOnEdge(2,j)) > 3) then
-            write(0,*) 'We have too many edges incident with vertex ',verticesOnEdge(2,j)
-            stop
-         end if
-         edgesOnVertex(nEdgesOnVertex(verticesOnEdge(2,j)),verticesOnEdge(2,j)) = j
-      end do
-
-
       !
       ! Determine which cells share each vertex
       !
       nCellsOnVertex(:) = 0
-      do i=1,nCells
+      CELL_LOOP: do i=1,nCells
          do j=1,nEdgesOnCell(i)
             nCellsOnVertex(verticesOnCell(j,i)) = nCellsOnVertex(verticesOnCell(j,i)) + 1
             if (nCellsOnVertex(verticesOnCell(j,i)) > 3) then
                write(0,*) 'We have too many cells sharing vertex ', verticesOnCell(j,i)
-               stop
+               cycle CELL_LOOP
             end if
             cellsOnVertex(nCellsOnVertex(verticesOnCell(j,i)),verticesOnCell(j,i)) = i
          end do
-      end do
-
-
-      !
-      ! Determine which edges "neighbor" each edge
-      !
-      do j=1,nEdges
-         allocate(points(nEdgesOnCell(cellsOnEdge(1,j))))
-         allocate(permutation(nEdgesOnCell(cellsOnEdge(1,j))))
-         js = 1
-         points(js) % lat = latEdge(j)
-         points(js) % lon = lonEdge(j)
-         permutation(js) = j
-         js = js + 1
-         center % lat = latCell(cellsOnEdge(1,j))
-         center % lon = lonCell(cellsOnEdge(1,j))
-
-         do k=1,nEdgesOnCell(cellsOnEdge(1,j))
-            if (edgesOnCell(k,cellsOnEdge(1,j)) /= j) then
-               nEdgesOnEdge(j) = nEdgesOnEdge(j) + 1
-               edgesOnEdge(nEdgesOnEdge(j),j) = edgesOnCell(k,cellsOnEdge(1,j))
-               points(js) % lat = latEdge(edgesOnCell(k,cellsOnEdge(1,j)))
-               points(js) % lon = lonEdge(edgesOnCell(k,cellsOnEdge(1,j)))
-               permutation(js) = edgesOnCell(k,cellsOnEdge(1,j))
-               js = js + 1
-            end if
-         end do
-         call order_points_ccw(center, nEdgesOnCell(cellsOnEdge(1,j)), points, permutation)
-         do k=2,nEdgesOnCell(cellsOnEdge(1,j))
-            edgesOnEdge(k-1,j) = permutation(k)
-         end do
-         deallocate(points)
-         deallocate(permutation)
-
-         allocate(points(nEdgesOnCell(cellsOnEdge(2,j))))
-         allocate(permutation(nEdgesOnCell(cellsOnEdge(2,j))))
-         js = 1
-         points(js) % lat = latEdge(j)
-         points(js) % lon = lonEdge(j)
-         permutation(js) = j
-         js = js + 1
-         center % lat = latCell(cellsOnEdge(2,j))
-         center % lon = lonCell(cellsOnEdge(2,j))
-
-         do k=1,nEdgesOnCell(cellsOnEdge(2,j))
-            if (edgesOnCell(k,cellsOnEdge(2,j)) /= j) then
-               nEdgesOnEdge(j) = nEdgesOnEdge(j) + 1
-               edgesOnEdge(nEdgesOnEdge(j),j) = edgesOnCell(k,cellsOnEdge(2,j))
-               points(js) % lat = latEdge(edgesOnCell(k,cellsOnEdge(2,j)))
-               points(js) % lon = lonEdge(edgesOnCell(k,cellsOnEdge(2,j)))
-               permutation(js) = edgesOnCell(k,cellsOnEdge(2,j))
-               js = js + 1
-            end if
-         end do
-         call order_points_ccw(center, nEdgesOnCell(cellsOnEdge(2,j)), points, permutation)
-         do k=2,nEdgesOnCell(cellsOnEdge(2,j))
-            edgesOnEdge(nEdgesOnCell(cellsOnEdge(1,j))+k-2,j) = permutation(k)
-         end do
-         deallocate(points)
-         deallocate(permutation)
-      end do
+      end do CELL_LOOP
 
 
       !
       ! Compute area of each cell
       !
+#if 0
       do i=1,nCells
          cell1GP % lat = latCell(i) 
          cell1GP % lon = lonCell(i) 
@@ -465,6 +241,7 @@ stop
          vertex2GP % lon = lonVertex(verticesOnCell(1,i)) 
          areaCell(i) = areaCell(i) + triangle_area(cell1GP, vertex1GP, vertex2GP, 1.0)
       end do
+#endif
 
 
       !
@@ -497,279 +274,7 @@ stop
       write(6,*) ' number of obtuse triangles ', nObtuse
 
 
-      kiteAreasOnVertex(:,:) = -1.0
-
-      !
-      ! Compute weights used in tangential velocity reconstruction
-      !
-      do j=1,nEdges
-         cell1GP % lat = latCell(cellsOnEdge(1,j))
-         cell1GP % lon = lonCell(cellsOnEdge(1,j))
-         cell2GP % lat = latCell(cellsOnEdge(2,j))
-         cell2GP % lon = lonCell(cellsOnEdge(2,j))
-         de = dcEdge(j)
-         prev_edge = j
-         sum_r = 0.0
-         do i=1,nEdgesOnCell(cellsOnEdge(1,j))-1
-            next_edge = edgesOnEdge(i,j)
-            if ((verticesOnEdge(1,prev_edge) == verticesOnEdge(1,next_edge)) .or. &
-                (verticesOnEdge(1,prev_edge) == verticesOnEdge(2,next_edge))) then
-               vtx = verticesOnEdge(1,prev_edge)
-            else if ((verticesOnEdge(2,prev_edge) == verticesOnEdge(1,next_edge)) .or. &
-                     (verticesOnEdge(2,prev_edge) == verticesOnEdge(2,next_edge))) then
-               vtx = verticesOnEdge(2,prev_edge)
-            else
-               write(0,*) 'Somehow these edges don''t share a vertex',j
-               write(0,*) 'Cells are ',cellsOnEdge(1,j),cellsOnEdge(2,j)
-               write(0,*) 'Edge ',prev_edge,' has vertices ',verticesOnEdge(1,prev_edge),verticesOnEdge(2,prev_edge)
-               write(0,*) 'Edge ',next_edge,' has vertices ',verticesOnEdge(1,next_edge),verticesOnEdge(2,next_edge)
-               write(0,*) 'edgesOnEdge()=',edgesOnEdge(:,j)
-               write(0,*) 'verticesOnCell(1) = ',verticesOnCell(:,cellsOnEdge(1,j))
-               write(0,*) 'edgesOnCell(1) = ',edgesOnCell(:,cellsOnEdge(1,j))
-               write(0,*) 'verticesOnEdge(12821)=',verticesOnEdge(:,12821)
-               write(0,*) 'verticesOnEdge(12823)=',verticesOnEdge(:,12823)
-               write(0,*) 'verticesOnEdge(13243)=',verticesOnEdge(:,13243)
-               write(0,*) 'verticesOnEdge(13245)=',verticesOnEdge(:,13245)
-               write(0,*) 'verticesOnEdge(13448)=',verticesOnEdge(:,13448)
-               write(0,*) 'verticesOnEdge(13449)=',verticesOnEdge(:,13449)
-               stop
-            end if
-            cell1GP % lat = latCell(cellsOnEdge(1,j))
-            cell1GP % lon = lonCell(cellsOnEdge(1,j))
-            vertex1GP % lat = latVertex(vtx)
-            vertex1GP % lon = lonVertex(vtx)
-            edgeGP_prev % lat = latEdge(prev_edge)
-            edgeGP_prev % lon = lonEdge(prev_edge)
-            edgeGP_next % lat = latEdge(next_edge)
-            edgeGP_next % lon = lonEdge(next_edge)
-
-            if(isObtuse(vtx).eq.0) then
-               area =        abs(triangle_area(cell1GP, vertex1GP, edgeGP_prev, 1.0))
-               area = area + abs(triangle_area(cell1GP, vertex1GP, edgeGP_next, 1.0))
-            else
-               if(cellsOnVertex(isObtuse(vtx),vtx).eq.cellsOnEdge(1,j)) then
-                 iFlag = 0
-                 do ii=1,3
-                  jj = edgesOnVertex(ii,vtx)
-                  if(jj.ne.prev_edge.and.jj.ne.next_edge) then
-                      write(6,*) jj, prev_edge, next_edge
-                      if(iFlag.eq.1) then
-                         write(6,*) ' can not be true '
-                         stop
-                      endif
-                      iEdge = jj
-                      iFlag = 1
-                   endif
-                  enddo
-                  edgeGP % lat = latEdge(iEdge)
-                  edgeGP % lon = lonEdge(iEdge)
-                  area =        abs(triangle_area(cell1GP, edgeGP, edgeGP_prev, 1.0))
-                  area = area + abs(triangle_area(cell1GP, edgeGP, edgeGP_next, 1.0))
-               else
-                  area = abs(triangle_area(cell1GP, edgeGP_prev, edgeGP_next, 1.0))
-               endif
-            endif
-
-            do ii=1,3
-               if (cellsOnEdge(1,j) == cellsOnVertex(ii,vtx)) then
-                  kiteAreasOnVertex(ii,vtx) = area
-                  exit
-               end if
-            end do
-
-            if(.not.tdrtest) then
-              write(6,*) ' not tdrtest'
-              r = area / areaCell(cellsOnEdge(1,j))
-              sum_r = sum_r + r
-              if (cellsOnEdge(1,j) == cellsOnEdge(1,edgesOnEdge(i,j))) then
-                 s = 1.0
-              else
-                 s = -1.0
-              end if
-              weightsOnEdge(i,j) = s*(0.5-sum_r)*dvEdge(edgesOnEdge(i,j))/de
-            endif
-
-            prev_edge = next_edge
-         end do
-
-         prev_edge = j
-         sum_r = 0.0
-         do i=nEdgesOnCell(cellsOnEdge(1,j)),nEdgesOnEdge(j)
-            next_edge = edgesOnEdge(i,j)
-            if ((verticesOnEdge(1,prev_edge) == verticesOnEdge(1,next_edge)) .or. &
-                (verticesOnEdge(1,prev_edge) == verticesOnEdge(2,next_edge))) then
-               vtx = verticesOnEdge(1,prev_edge)
-            else if ((verticesOnEdge(2,prev_edge) == verticesOnEdge(1,next_edge)) .or. &
-                     (verticesOnEdge(2,prev_edge) == verticesOnEdge(2,next_edge))) then
-               vtx = verticesOnEdge(2,prev_edge)
-            else
-               write(0,*) 'Somehow these edges don''t share a vertex'
-               write(0,*) 'Edge ',prev_edge,' has vertices ',verticesOnEdge(1,prev_edge),verticesOnEdge(2,prev_edge)
-               write(0,*) 'Edge ',next_edge,' has vertices ',verticesOnEdge(1,next_edge),verticesOnEdge(2,next_edge)
-               write(0,*) 'VerticesOnCell(2) = ',verticesOnCell(:,cellsOnEdge(2,j))
-               write(0,*) 'edgesOnCell(2) = ',edgesOnCell(:,cellsOnEdge(2,j))
-               stop
-            end if
-            cell1GP % lat = latCell(cellsOnEdge(2,j))
-            cell1GP % lon = lonCell(cellsOnEdge(2,j))
-            vertex1GP % lat = latVertex(vtx)
-            vertex1GP % lon = lonVertex(vtx)
-
-            edgeGP_prev % lat = latEdge(prev_edge)
-            edgeGP_prev % lon = lonEdge(prev_edge)
-            edgeGP_next % lat = latEdge(next_edge)
-            edgeGP_next % lon = lonEdge(next_edge)
-
-            if(isObtuse(vtx).eq.0) then
-               area =        abs(triangle_area(cell1GP, vertex1GP, edgeGP_prev, 1.0))
-               area = area + abs(triangle_area(cell1GP, vertex1GP, edgeGP_next, 1.0))
-            else
-               if(cellsOnVertex(isObtuse(vtx),vtx).eq.cellsOnEdge(2,j)) then
-                 iFlag = 0
-                 do ii=1,3
-                  jj = edgesOnVertex(ii,vtx)
-                  if(jj.ne.prev_edge.and.jj.ne.next_edge) then
-                      write(6,*) jj, prev_edge, next_edge       
-                      if(iFlag.eq.1) then
-                         write(6,*) ' can not be true '
-                         stop
-                      endif
-                      iEdge = jj
-                      iFlag = 1
-                   endif
-                  enddo
-                  edgeGP % lat = latEdge(iEdge)
-                  edgeGP % lon = lonEdge(iEdge)
-                  area =        abs(triangle_area(cell1GP, edgeGP, edgeGP_prev, 1.0))
-                  area = area + abs(triangle_area(cell1GP, edgeGP, edgeGP_next, 1.0))
-               else
-                  area = abs(triangle_area(cell1GP, edgeGP_prev, edgeGP_next, 1.0))
-               endif
-            endif
-
-            do ii=1,3
-               if (cellsOnEdge(2,j) == cellsOnVertex(ii,vtx)) then
-                  kiteAreasOnVertex(ii,vtx) = area
-                  exit
-               end if
-            end do
-
-            if(.not.tdrtest) then
-              write(6,*) ' not tdrtest'
-              r = area / areaCell(cellsOnEdge(2,j))
-              sum_r = sum_r + r
-              if (cellsOnEdge(2,j) == cellsOnEdge(1,edgesOnEdge(i,j))) then
-                 s = -1.0
-              else
-                 s = 1.0
-              end if
-              weightsOnEdge(i,j) = s*(0.5-sum_r)*dvEdge(edgesOnEdge(i,j))/de
-            endif
-
-            prev_edge = next_edge
-         end do
-      end do
-
-!----
-
-      if(tdrtest) then
- 
-      write(6,*) ' testing tdr '
-
-      areaTriangle = 0.0
-      areaCell = 0.0
-      do i=1,nVertices
-        do ii=1,3
-           jj = cellsOnVertex(ii,i)
-           areaCell(jj) = areaCell(jj) + kiteAreasOnVertex(ii,i)
-           areaTriangle(i) = areaTriangle(i) + kiteAreasOnVertex(ii,i)
-         enddo
-      end do
-
-      do j=1,nEdges
-         de = dcEdge(j)
-         prev_edge = j
-         sum_r = 0.0
-         do i=1,nEdgesOnCell(cellsOnEdge(1,j))-1
-            next_edge = edgesOnEdge(i,j)
-            if ((verticesOnEdge(1,prev_edge) == verticesOnEdge(1,next_edge)) .or. &
-                (verticesOnEdge(1,prev_edge) == verticesOnEdge(2,next_edge))) then
-               vtx = verticesOnEdge(1,prev_edge)
-            else if ((verticesOnEdge(2,prev_edge) == verticesOnEdge(1,next_edge)) .or. &
-                     (verticesOnEdge(2,prev_edge) == verticesOnEdge(2,next_edge))) then
-               vtx = verticesOnEdge(2,prev_edge)
-            else
-               stop
-            end if
-
-            do ii=1,3
-             if(cellsOnVertex(ii,vtx).eq.cellsOnEdge(1,j)) then
-               area = kiteAreasOnVertex(ii,vtx)
-               exit
-             endif
-            enddo
-
-            r = area / areaCell(cellsOnEdge(1,j))
-            sum_r = sum_r + r
-            if (cellsOnEdge(1,j) == cellsOnEdge(1,edgesOnEdge(i,j))) then
-               s = 1.0
-            else
-               s = -1.0
-            end if
-            weightsOnEdge(i,j) = s*(0.5-sum_r)*dvEdge(edgesOnEdge(i,j))/de
-            prev_edge = next_edge
-         end do
-
-         prev_edge = j
-         sum_r = 0.0
-         do i=nEdgesOnCell(cellsOnEdge(1,j)),nEdgesOnEdge(j)
-            next_edge = edgesOnEdge(i,j)
-            if ((verticesOnEdge(1,prev_edge) == verticesOnEdge(1,next_edge)) .or. &
-                (verticesOnEdge(1,prev_edge) == verticesOnEdge(2,next_edge))) then
-               vtx = verticesOnEdge(1,prev_edge)
-            else if ((verticesOnEdge(2,prev_edge) == verticesOnEdge(1,next_edge)) .or. &
-                     (verticesOnEdge(2,prev_edge) == verticesOnEdge(2,next_edge))) then
-               vtx = verticesOnEdge(2,prev_edge)
-            else
-               stop
-            end if
-
-            do ii=1,3
-             if(cellsOnVertex(ii,vtx).eq.cellsOnEdge(2,j)) then
-               area = kiteAreasOnVertex(ii,vtx)
-               exit
-             endif
-            enddo
-
-            r = area / areaCell(cellsOnEdge(2,j))
-            sum_r = sum_r + r
-            if (cellsOnEdge(2,j) == cellsOnEdge(1,edgesOnEdge(i,j))) then
-               s = -1.0
-            else
-               s = 1.0
-            end if
-            weightsOnEdge(i,j) = s*(0.5-sum_r)*dvEdge(edgesOnEdge(i,j))/de
-            prev_edge = next_edge
-         end do
-      end do
-
-      write(6,*) ' areas ', minval(areaCell), maxval(areaCell), maxval(areaCell)/minval(areaCell)
-      write(6,*) ' dcEdge ', minval(dcEdge), maxval(dcEdge), maxval(dcEdge)/minval(dcEdge)
-
-     endif  ! tdrtest
-
-!-----
-
-      do i=1,nEdges
-         edgeGP % lat = latEdge(i)
-         edgeGP % lon = lonEdge(i)
-         vertex1GP % lat = latVertex(verticesOnEdge(1,i))
-         vertex1GP % lon = lonVertex(verticesOnEdge(1,i))
-         vertex2GP % lat = latVertex(verticesOnEdge(2,i))
-         vertex2GP % lon = lonVertex(verticesOnEdge(2,i))
-         dv1Edge(i) = sphere_distance(edgeGP, vertex1GP, 1.0) 
-         dv2Edge(i) = sphere_distance(edgeGP, vertex2GP, 1.0) 
-      end do
+write(0,*) 'DID WE MAKE IT HERE?'
 
 
       write(0,*) 'There are ', nCells, ' cells and ', nEdges, ' edges' 
@@ -777,23 +282,6 @@ stop
       write(0,*) 'Total area of all cells is ',sum(areaCell(:))
       write(0,*) 'Total triangle area=',sum(areaTriangle(:))
       write(0,*) 'Total kite area=',sum(kiteAreasOnVertex(:,:))
-
-
-      do i=1,nCells
-         cell1GP % lat = latCell(i)
-         cell1GP % lon = lonCell(i)
-         call convert_lx(xCell(i), yCell(i), zCell(i), 1.0, cell1GP)
-      end do
-      do i=1,nVertices
-         vertex1GP % lat = latVertex(i)
-         vertex1GP % lon = lonVertex(i)
-         call convert_lx(xVertex(i), yVertex(i), zVertex(i), 1.0, vertex1GP)
-      end do
-      do i=1,nEdges
-         edgeGP % lat = latEdge(i)
-         edgeGP % lon = lonEdge(i)
-         call convert_lx(xEdge(i), yEdge(i), zEdge(i), 1.0, edgeGP)
-      end do
 
 
       nVertLevels = 1
@@ -822,27 +310,6 @@ stop
       vorticity(:,:,1) = 0.0
       ke(:,:,1) = 0.0
       tracers(:,:,:,1) = 0.0
-
-      h_s(:) = 0.0
-      do i=1,nCells
-         indexToCellID(i) = i
-      end do
-      do i=1,nEdges
-         fEdge(i) = 2.0 * 7.292E-5 * sin(latEdge(i))
-         indexToEdgeID(i) = i
-      end do
-      do i=1,nVertices
-         fVertex(i) = 2.0 * 7.292E-5 * sin(latVertex(i))
-         indexToVertexID(i) = i
-      end do
-
-      do i=1,nCells
-        pCell%lat = latCell(i)
-        pCell%lon = lonCell(i)
-        if(pCell%lon.gt. pii) pCell%lon=pCell%lon-2.0*pii
-        if(pCell%lon.ge.-pii) pCell%lon=pCell%lon+2.0*pii
-        meshDensity(i) = density_for_point(pCell)
-      enddo
 
       call write_netcdf_init( &
                               nCells, &
