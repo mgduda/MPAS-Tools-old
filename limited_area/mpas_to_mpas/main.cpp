@@ -75,7 +75,6 @@ int main(int argc, char **argv)
 	NCField<float> *theta_mSrc;
 	NCField<float> *rho_zzSrc;
 	NCField<float> *zzSrc;
-	NCField<float> *rho_edgeSrc;
 	NCField<float> *qvSrc;
 	NCField<float> *wSrc;
 	float ***uSrcArr;
@@ -261,7 +260,6 @@ int main(int argc, char **argv)
 		vSrc = new NCField<float>("v", 3, "Time", (size_t)1, "nEdges", uSrc->dimSize("nEdges"), "nVertLevels", uSrc->dimSize("nVertLevels"));
 		theta_mSrc = new NCField<float>(globalFieldFile, "theta_m");
 		rho_zzSrc = new NCField<float>(globalFieldFile, "rho_zz");
-		rho_edgeSrc = new NCField<float>(globalFieldFile, "rho_edge");
 		qvSrc = new NCField<float>(globalFieldFile, "qv");
 		wSrc = new NCField<float>(globalFieldFile, "w");
 		stop_timer(0, &secs, &nsecs);
@@ -389,7 +387,6 @@ int main(int argc, char **argv)
 		delete vSrc;
 		delete theta_mSrc;
 		delete rho_zzSrc;
-		delete rho_edgeSrc;
 		delete qvSrc;
 		delete wSrc;
 
