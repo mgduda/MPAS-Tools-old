@@ -32,6 +32,11 @@ int main(int argc, char **argv)
 	NCField<float> *zzEdgeDst;
 	NCField<float> *rho_edgeDst;
 	NCField<float> *qvDst;
+	NCField<float> *qcDst;
+	NCField<float> *qrDst;
+	NCField<float> *qiDst;
+	NCField<float> *qsDst;
+	NCField<float> *qgDst;
 	NCField<float> *wDst;
 	NCField<char> *xtime;
 	float ***uDstArr;
@@ -76,6 +81,11 @@ int main(int argc, char **argv)
 	NCField<float> *rho_zzSrc;
 	NCField<float> *zzSrc;
 	NCField<float> *qvSrc;
+	NCField<float> *qcSrc;
+	NCField<float> *qrSrc;
+	NCField<float> *qiSrc;
+	NCField<float> *qsSrc;
+	NCField<float> *qgSrc;
 	NCField<float> *wSrc;
 	float ***uSrcArr;
 	float ***vSrcArr;
@@ -93,6 +103,7 @@ int main(int argc, char **argv)
 	RemapperEdge *edgeMap;
 	int secs, nsecs;
 	int itime;
+
 
 	if (argc < 4) {
 		std::cerr << "\nUsage: " << argv[0] << " <global_IC_file> <regional_IC_file> <global_fields_file>+\n\n";
@@ -240,18 +251,6 @@ int main(int argc, char **argv)
 
 
 		//
-		// Allocate fields for interpolated regional fields
-		//
-		uDst = new NCField<float>("lbc_u", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
-		vDst = new NCField<float>("lbc_v", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
-		theta_mDst = new NCField<float>("lbc_theta_m", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
-		rho_zzDst = new NCField<float>("lbc_rho_zz", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
-		rho_edgeDst = new NCField<float>("lbc_rho_edge", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
-		qvDst = new NCField<float>("lbc_qv", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
-		wDst = new NCField<float>("lbc_w", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevelsP1", zgridDst->dimSize("nVertLevelsP1"));
-
-
-		//
 		// Allocate and read global input fields
 		//
 		start_timer(0);
@@ -260,10 +259,22 @@ int main(int argc, char **argv)
 		vSrc = new NCField<float>("v", 3, "Time", (size_t)1, "nEdges", uSrc->dimSize("nEdges"), "nVertLevels", uSrc->dimSize("nVertLevels"));
 		theta_mSrc = new NCField<float>(globalFieldFile, "theta_m");
 		rho_zzSrc = new NCField<float>(globalFieldFile, "rho_zz");
-		qvSrc = new NCField<float>(globalFieldFile, "qv");
 		wSrc = new NCField<float>(globalFieldFile, "w");
+		qvSrc = new NCField<float>(globalFieldFile, "qv");
 		stop_timer(0, &secs, &nsecs);
 		printf("Time to read time-dependent fields from %s : %i.%9.9i\n", globalFieldFile, secs, nsecs);
+
+
+		//
+		// Allocate fields for interpolated regional fields
+		//
+		uDst = new NCField<float>("lbc_u", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+		vDst = new NCField<float>("lbc_v", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+		theta_mDst = new NCField<float>("lbc_theta_m", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+		rho_zzDst = new NCField<float>("lbc_rho_zz", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+		rho_edgeDst = new NCField<float>("lbc_rho_edge", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+		wDst = new NCField<float>("lbc_w", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevelsP1", zgridDst->dimSize("nVertLevelsP1"));
+		qvDst = new NCField<float>("lbc_qv", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
 
 
 		uSrcArr = uSrc->ptr3D();
@@ -318,8 +329,76 @@ int main(int argc, char **argv)
 		stat = theta_mDst->defineInFile(ncid);
 		stat = rho_zzDst->defineInFile(ncid);
 		stat = rho_edgeDst->defineInFile(ncid);
-		stat = qvDst->defineInFile(ncid);
 		stat = wDst->defineInFile(ncid);
+		stat = qvDst->defineInFile(ncid);
+
+		//
+		// Look for other scalars to process (qc, qr, etc.)
+		//
+		try {
+			qcSrc = new NCField<float>(globalFieldFile, "qc");
+			std::cout << "found qc in " << globalFieldFile << std::endl;
+			qcDst = new NCField<float>("lbc_qc", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+			qcDst->remapFrom(*qcSrc, *cellLayerMap);
+			stat = qcDst->defineInFile(ncid);
+			delete qcSrc;
+		}
+		catch (int e) {
+			std::cout << "qc not found in " << globalFieldFile << std::endl;
+			qcDst = new NCField<float>();
+		}
+
+		try {
+			qrSrc = new NCField<float>(globalFieldFile, "qr");
+			std::cout << "found qr in " << globalFieldFile << std::endl;
+			qrDst = new NCField<float>("lbc_qr", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+			qrDst->remapFrom(*qrSrc, *cellLayerMap);
+			stat = qrDst->defineInFile(ncid);
+			delete qrSrc;
+		}
+		catch (int e) {
+			std::cout << "qr not found in " << globalFieldFile << std::endl;
+			qrDst = new NCField<float>();
+		}
+
+		try {
+			qiSrc = new NCField<float>(globalFieldFile, "qi");
+			std::cout << "found qi in " << globalFieldFile << std::endl;
+			qiDst = new NCField<float>("lbc_qi", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+			qiDst->remapFrom(*qiSrc, *cellLayerMap);
+			stat = qiDst->defineInFile(ncid);
+			delete qiSrc;
+		}
+		catch (int e) {
+			std::cout << "qi not found in " << globalFieldFile << std::endl;
+			qiDst = new NCField<float>();
+		}
+
+		try {
+			qsSrc = new NCField<float>(globalFieldFile, "qs");
+			std::cout << "found qs in " << globalFieldFile << std::endl;
+			qsDst = new NCField<float>("lbc_qs", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+			qsDst->remapFrom(*qsSrc, *cellLayerMap);
+			stat = qsDst->defineInFile(ncid);
+			delete qsSrc;
+		}
+		catch (int e) {
+			std::cout << "qs not found in " << globalFieldFile << std::endl;
+			qsDst = new NCField<float>();
+		}
+
+		try {
+			qgSrc = new NCField<float>(globalFieldFile, "qg");
+			std::cout << "found qg in " << globalFieldFile << std::endl;
+			qgDst = new NCField<float>("lbc_qg", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+			qgDst->remapFrom(*qgSrc, *cellLayerMap);
+			stat = qgDst->defineInFile(ncid);
+			delete qgSrc;
+		}
+		catch (int e) {
+			std::cout << "qg not found in " << globalFieldFile << std::endl;
+			qgDst = new NCField<float>();
+		}
 
 		stat = nc_enddef(ncid);
 
@@ -334,14 +413,15 @@ int main(int argc, char **argv)
 		vDst->remapFrom(*vSrc, *edgeMap);
 		rotate_winds(uDst->dimSize("nEdges"), uDst->dimSize("nVertLevels"), angleEdgeDstArr, uDstArr[0], vDstArr[0], 0);
 
+
 		//
 		// Interpolate scalar fields
 		//
 		theta_mDst->remapFrom(*theta_mSrc, *cellLayerMap);
 		rho_zzDst->remapFrom(*rho_zzSrc, *cellLayerMap);
 		rho_edgeDst->remapFrom(*rho_zzSrc, *cellToEdgeMap);
-		qvDst->remapFrom(*qvSrc, *cellLayerMap);
 		wDst->remapFrom(*wSrc, *cellLevelMap);
+		qvDst->remapFrom(*qvSrc, *cellLayerMap);
 		stop_timer(0, &secs, &nsecs);
 		printf("Time to remap fields : %i.%9.9i\n", secs, nsecs);
 
@@ -374,9 +454,35 @@ int main(int argc, char **argv)
 		stat = theta_mDst->writeToFile(ncid);
 		stat = rho_zzDst->writeToFile(ncid);
 		stat = rho_edgeDst->writeToFile(ncid);
-		stat = qvDst->writeToFile(ncid);
 		stat = wDst->writeToFile(ncid);
+		stat = qvDst->writeToFile(ncid);
 		stop_timer(0, &secs, &nsecs);
+
+		if (qcDst->valid()) {
+			stat = qcDst->writeToFile(ncid);
+		}
+		delete(qcDst);
+
+		if (qrDst->valid()) {
+			stat = qrDst->writeToFile(ncid);
+		}
+		delete(qrDst);
+
+		if (qiDst->valid()) {
+			stat = qiDst->writeToFile(ncid);
+		}
+		delete(qiDst);
+
+		if (qsDst->valid()) {
+			stat = qsDst->writeToFile(ncid);
+		}
+		delete(qsDst);
+
+		if (qgDst->valid()) {
+			stat = qgDst->writeToFile(ncid);
+		}
+		delete(qgDst);
+
 		printf("Time to write output fields : %i.%9.9i\n", secs, nsecs);
 
 		stat = nc_close(ncid);
@@ -387,16 +493,16 @@ int main(int argc, char **argv)
 		delete vSrc;
 		delete theta_mSrc;
 		delete rho_zzSrc;
-		delete qvSrc;
 		delete wSrc;
+		delete qvSrc;
 
 		delete uDst;
 		delete vDst;
 		delete theta_mDst;
 		delete rho_zzDst;
 		delete rho_edgeDst;
-		delete qvDst;
 		delete wDst;
+		delete qvDst;
 	}
 	
 
