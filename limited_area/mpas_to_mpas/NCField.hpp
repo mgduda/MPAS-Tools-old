@@ -26,6 +26,7 @@ public:
 		data = NULL;
 		data2d = NULL;
 		data3d = NULL;
+		isValid = false;
 		unlimited_dim = -1;
 	}
 
@@ -42,6 +43,7 @@ public:
 		data = NULL;
 		data2d = NULL;
 		data3d = NULL;
+		isValid = false;
 
 		stat = nc_open(filename, NC_SHARE, &ncid);
 		if (stat != NC_NOERR) {
@@ -49,11 +51,13 @@ public:
 		}
 	
 		init(ncid, fieldname);
-	
+
 		stat = nc_close(ncid);
 		if (stat != NC_NOERR) {
 			throw stat;
 		}
+
+		isValid = true;
 	}
 
 
@@ -66,8 +70,11 @@ public:
 		data = NULL;
 		data2d = NULL;
 		data3d = NULL;
+		isValid = false;
 
 		init(ncid, fieldname);
+
+		isValid = true;
 	}
 
 
@@ -98,6 +105,7 @@ public:
 		data = new fieldType[totsize];
 		data2d = NULL;
 		data3d = NULL;
+		isValid = true;
 		unlimited_dim = -1;
 
 		va_end(args);
@@ -107,6 +115,7 @@ public:
 	~NCField()
 	{
 		ndims = 0;
+		isValid = false;
 		for (int i=0; i<MAXDIMS; i++) {
 			dimlens[i] = 0;
 		}
@@ -122,7 +131,14 @@ public:
 	}
 
 
-	inline size_t size(int idim=(-1)) {
+	bool valid()
+	{
+		return isValid;
+	}
+
+
+	inline size_t size(int idim=(-1))
+	{
 		if (idim == -1) {
 			return totsize;
 		}
@@ -132,7 +148,8 @@ public:
 	}
 
 
-	inline size_t dimSize(const char *dim) {
+	inline size_t dimSize(const char *dim)
+	{
 		for (int i=0; i<ndims; i++) {
 			if (strncmp(dim, dimnames[i], NC_MAX_NAME) == 0) {
 				return dimlens[i];
@@ -461,5 +478,6 @@ private:
 	fieldType *data;
 	fieldType **data2d;
 	fieldType ***data3d;
+	bool isValid;
 };
 #endif
