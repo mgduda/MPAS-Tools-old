@@ -93,31 +93,33 @@ void RemapperCell::computeWeightsCell(int nCellsDst, int nVertLevelsSrc, int nVe
 		mpas_wachspress_coordinates(vertexDegree, vertCoords, pointInterp, HSrcWghts2d[i]);
 	}
 
-	nVDstPts = nVertLevelsDst;
-	nVSrcLevels = nVertLevelsSrc;
-	maxVSrcPts = 2;
-	nVSrcPts = new int[nHDstPts * nVDstPts];
-	nVSrcPts2d = allocate_2d<int>(nHDstPts, nVDstPts, nVSrcPts);
-	VSrcPts = new int[nHDstPts * nVDstPts * maxVSrcPts];
-	VSrcPts3d = allocate_3d<int>(nHDstPts, nVDstPts, maxVSrcPts, VSrcPts);
-	VSrcWghts = new float[nHDstPts * nVDstPts * maxVSrcPts];
-	VSrcWghts3d = allocate_3d<float>(nHDstPts, nVDstPts, maxVSrcPts, VSrcWghts);
+	if (nVertLevelsSrc > 0 && nVertLevelsDst > 0) {
+		nVDstPts = nVertLevelsDst;
+		nVSrcLevels = nVertLevelsSrc;
+		maxVSrcPts = 2;
+		nVSrcPts = new int[nHDstPts * nVDstPts];
+		nVSrcPts2d = allocate_2d<int>(nHDstPts, nVDstPts, nVSrcPts);
+		VSrcPts = new int[nHDstPts * nVDstPts * maxVSrcPts];
+		VSrcPts3d = allocate_3d<int>(nHDstPts, nVDstPts, maxVSrcPts, VSrcPts);
+		VSrcWghts = new float[nHDstPts * nVDstPts * maxVSrcPts];
+		VSrcWghts3d = allocate_3d<float>(nHDstPts, nVDstPts, maxVSrcPts, VSrcWghts);
 
 #pragma omp parallel for private(tempLevels)
-	for (int i=0; i<nHDstPts; i++) {
-		// Horizontally interpolate column of levelsSrc values
-		for (int k=0; k<nVertLevelsSrc; k++) {
-			tempLevels[k] = 0;
-		}
-		for (int j=0; j<nHSrcPts[i]; j++) {
+		for (int i=0; i<nHDstPts; i++) {
+			// Horizontally interpolate column of levelsSrc values
 			for (int k=0; k<nVertLevelsSrc; k++) {
-				tempLevels[k] += (HSrcWghts2d[i][j] * levelsSrc[HSrcPts2d[i][j]][k]);
+				tempLevels[k] = 0;
 			}
-		}
+			for (int j=0; j<nHSrcPts[i]; j++) {
+				for (int k=0; k<nVertLevelsSrc; k++) {
+					tempLevels[k] += (HSrcWghts2d[i][j] * levelsSrc[HSrcPts2d[i][j]][k]);
+				}
+			}
 
-		// For each vertical destination point, determine weights from tempLevels
-		for (int k=0; k<nVDstPts; k++) {
-			get_weights_1d(nVertLevelsSrc, tempLevels, levelsDst[i][k], &nVSrcPts2d[i][k], VSrcPts3d[i][k], VSrcWghts3d[i][k]);
+			// For each vertical destination point, determine weights from tempLevels
+			for (int k=0; k<nVDstPts; k++) {
+				get_weights_1d(nVertLevelsSrc, tempLevels, levelsDst[i][k], &nVSrcPts2d[i][k], VSrcPts3d[i][k], VSrcWghts3d[i][k]);
+			}
 		}
 	}
 }
@@ -126,7 +128,12 @@ void RemapperCell::computeWeightsCell(int nCellsDst, int nVertLevelsSrc, int nVe
 void RemapperCell::remap(const std::type_info& t, int ndims, void *dst, void *src)
 {
 	if (std::type_index(t) == typeid(float)) {
-		if (ndims == 2) {
+		if (ndims == 1) {
+			float *dstf = (float *)dst;
+			float *srcf = (float *)src;
+			remap1D(dstf, srcf);
+		}
+		else if (ndims == 2) {
 			float **dstf = (float **)dst;
 			float **srcf = (float **)src;
 			remap2D(dstf, srcf);
@@ -139,6 +146,18 @@ void RemapperCell::remap(const std::type_info& t, int ndims, void *dst, void *sr
 	}
 	else {
 		throw "RemapperCell can only handle 2-d or 3-d float fields";
+	}
+}
+
+void RemapperCell::remap1D(float *dst, float *src)
+{
+	std::cerr << "Remapping 1d field\n";
+
+	for (int i=0; i<nHDstPts; i++) {
+		dst[i] = 0;
+		for (int j=0; j<nHSrcPts[i]; j++) {
+			dst[i] += (HSrcWghts2d[i][j] * src[HSrcPts2d[i][j]]);
+		}
 	}
 }
 

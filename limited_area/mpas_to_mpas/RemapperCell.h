@@ -44,6 +44,7 @@ private:
 	//
 	// Internal for handling remapping of 2- and 3-d fields
 	//
+	void remap1D(float *dst, float *src);
 	void remap2D(float **dst, float **src);
 	void remap3D(float ***dst, float ***src);
 };

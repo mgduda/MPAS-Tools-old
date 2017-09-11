@@ -355,7 +355,15 @@ public:
 
 	void remapFrom(NCField<fieldType>& src, RemapperBase& map)
 	{
-		if (ndims == 2 && src.rank() == 2) {
+		if (ndims == 1 && src.rank() == 1) {
+			void *src1d;
+			void *dst1d;
+
+			src1d = src.ptr1D();
+			dst1d = ptr1D();
+			map.remap(typeid(fieldType), 1, dst1d, src1d);
+		}
+		else if (ndims == 2 && src.rank() == 2) {
 			void *src2d;
 			void *dst2d;
 
