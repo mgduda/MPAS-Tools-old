@@ -250,6 +250,8 @@ public:
 		if (stat != NC_NOERR) {
 			stat = nc_def_var(ncid, varname, xtype, ndims, dimids, &varid);
 		}
+
+		return stat;
 	}
 
 
@@ -267,6 +269,8 @@ public:
 			}
 			stat = nc_put_vara(ncid, varid, startp, dimlens, (void *)data);
 		}
+
+		return stat;
 	}
 
 

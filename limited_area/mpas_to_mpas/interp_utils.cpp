@@ -107,6 +107,8 @@ int nearest_vertex(float target_lat, float target_lon, int start_vertex,
 			}
 		}
 	}
+
+	return retval;
 }
 
 
