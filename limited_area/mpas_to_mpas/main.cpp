@@ -247,7 +247,8 @@ int main(int argc, char **argv)
 
 
 	//
-	// Compute weights for remapping cell-based fields to edges (used for interpolating rho to rho_edge)
+	// Compute weights for remapping cell-based fields to edges (used for interpolating rho to rho_edge, or
+	//    uReconstruct{Zonal,Meridional} to u)
 	//
 	start_timer(0);
 	cellToEdgeMap = new RemapperCell();
@@ -260,17 +261,20 @@ int main(int argc, char **argv)
 
 
 	//
-	// Compute weights for remapping edge-based fields on layers (only used for u and v right now)
+	// Compute weights for remapping edge-based fields on layers (only used for u and v right now; only needed if
+	//    --use-reconstruct-winds not specified)
 	//
-	start_timer(0);
-	edgeMap = new RemapperEdge();
-	edgeMap->computeWeightsEdge(latCellSrc->dimSize("nCells"), latEdgeDst->dimSize("nEdges"),
-                                      zedgeSrc->dimSize("nVertLevels"), zedgeDst->dimSize("nVertLevels"),
-                                      nEdgesOnCellSrc->ptr1D(), cellsOnCellSrc->ptr2D(), edgesOnCellSrc->ptr2D(),
-                                      latCellSrc->ptr1D(), lonCellSrc->ptr1D(), latEdgeSrc->ptr1D(), lonEdgeSrc->ptr1D(), zedgeSrc->ptr2D(),
-                                      latCellDst->ptr1D(), lonCellDst->ptr1D(), latEdgeDst->ptr1D(), lonEdgeDst->ptr1D(), zedgeDst->ptr2D());
-	stop_timer(0, &secs, &nsecs);
-	printf("Time to create edgeMap : %i.%9.9i\n", secs, nsecs);
+	if (!use_reconstruct_winds) {
+		start_timer(0);
+		edgeMap = new RemapperEdge();
+		edgeMap->computeWeightsEdge(latCellSrc->dimSize("nCells"), latEdgeDst->dimSize("nEdges"),
+                                            zedgeSrc->dimSize("nVertLevels"), zedgeDst->dimSize("nVertLevels"),
+                                            nEdgesOnCellSrc->ptr1D(), cellsOnCellSrc->ptr2D(), edgesOnCellSrc->ptr2D(),
+                                            latCellSrc->ptr1D(), lonCellSrc->ptr1D(), latEdgeSrc->ptr1D(), lonEdgeSrc->ptr1D(), zedgeSrc->ptr2D(),
+                                            latCellDst->ptr1D(), lonCellDst->ptr1D(), latEdgeDst->ptr1D(), lonEdgeDst->ptr1D(), zedgeDst->ptr2D());
+		stop_timer(0, &secs, &nsecs);
+		printf("Time to create edgeMap : %i.%9.9i\n", secs, nsecs);
+	}
 
 
 	//
@@ -291,8 +295,14 @@ int main(int argc, char **argv)
 			std::cerr << "Error reading xtime field from " << globalFieldFile << std::endl;
 			return 1;
 		}
-		uSrc = new NCField<float>(globalFieldFile, "u");
-		vSrc = new NCField<float>("v", 3, "Time", (size_t)1, "nEdges", uSrc->dimSize("nEdges"), "nVertLevels", uSrc->dimSize("nVertLevels"));
+		if (use_reconstruct_winds) {
+			uSrc = new NCField<float>(globalFieldFile, "uReconstructZonal");
+			vSrc = new NCField<float>(globalFieldFile, "uReconstructMeridional");
+		}
+		else {
+			uSrc = new NCField<float>(globalFieldFile, "u");
+			vSrc = new NCField<float>("v", 3, "Time", (size_t)1, "nEdges", uSrc->dimSize("nEdges"), "nVertLevels", uSrc->dimSize("nVertLevels"));
+		}
 		theta_mSrc = new NCField<float>(globalFieldFile, "theta_m");
 		rho_zzSrc = new NCField<float>(globalFieldFile, "rho_zz");
 		wSrc = new NCField<float>(globalFieldFile, "w");
@@ -323,11 +333,13 @@ int main(int argc, char **argv)
 		// Reconstruct the global v field, and rotate the {u,v} vector field so that
 		// u is the zonal wind component and v is the meridional wind component
 		//
-		start_timer(0);
-		reconstruct_v(uSrc->dimSize("nEdges"), uSrc->dimSize("nVertLevels"), nEdgesOnEdgeSrcArr, edgesOnEdgeSrcArr, weightsOnEdgeSrcArr, uSrcArr[0], vSrcArr[0]);
-		rotate_winds(uSrc->dimSize("nEdges"), uSrc->dimSize("nVertLevels"), angleEdgeSrcArr, uSrcArr[0], vSrcArr[0], 1);
-		stop_timer(0, &secs, &nsecs);
-		printf("Time to reconstruct v and rotate winds : %i.%9.9i\n", secs, nsecs);
+		if (!use_reconstruct_winds) {
+			start_timer(0);
+			reconstruct_v(uSrc->dimSize("nEdges"), uSrc->dimSize("nVertLevels"), nEdgesOnEdgeSrcArr, edgesOnEdgeSrcArr, weightsOnEdgeSrcArr, uSrcArr[0], vSrcArr[0]);
+			rotate_winds(uSrc->dimSize("nEdges"), uSrc->dimSize("nVertLevels"), angleEdgeSrcArr, uSrcArr[0], vSrcArr[0], 1);
+			stop_timer(0, &secs, &nsecs);
+			printf("Time to reconstruct v and rotate winds : %i.%9.9i\n", secs, nsecs);
+		}
 
 		zzSrcArr = zzSrc->ptr2D();
 		zzDstArr = zzDst->ptr2D();
@@ -393,8 +405,14 @@ int main(int argc, char **argv)
 		uDstArr = uDst->ptr3D();
 		vDstArr = vDst->ptr3D();
 		angleEdgeDstArr = angleEdgeDst->ptr1D();
-		uDst->remapFrom(*uSrc, *edgeMap);
-		vDst->remapFrom(*vSrc, *edgeMap);
+		if (!use_reconstruct_winds) {
+			uDst->remapFrom(*uSrc, *edgeMap);
+			vDst->remapFrom(*vSrc, *edgeMap);
+		}
+		else {
+			uDst->remapFrom(*uSrc, *cellToEdgeMap);
+			vDst->remapFrom(*vSrc, *cellToEdgeMap);
+		}
 		rotate_winds(uDst->dimSize("nEdges"), uDst->dimSize("nVertLevels"), angleEdgeDstArr, uDstArr[0], vDstArr[0], 0);
 
 
@@ -501,7 +519,9 @@ int main(int argc, char **argv)
 	delete zzEdgeDst;
 	delete cellLayerMap;
 	delete cellLevelMap;
-	delete edgeMap;
+	if (!use_reconstruct_winds) {
+		delete edgeMap;
+	}
 	delete cellToEdgeMap;
 
 	return 0;
