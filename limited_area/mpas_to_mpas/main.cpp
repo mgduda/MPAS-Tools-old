@@ -1,5 +1,6 @@
 #include <iostream>
 #include <stdio.h>
+#include <string.h>
 #include "netcdf.h"
 #include "NCField.hpp"
 #include "RemapperCell.h"
@@ -98,21 +99,49 @@ int main(int argc, char **argv)
 	RemapperEdge *edgeMap;
 	int secs, nsecs;
 	int itime;
+	int argv_idx;
+	int use_reconstruct_winds;
 
 
 	if (argc < 4) {
-		std::cerr << "\nUsage: " << argv[0] << " <global_IC_file> <regional_IC_file> <global_fields_file>+\n\n";
+		std::cerr << "\nUsage: " << argv[0] << " [--use-reconstruct-winds] <global_IC_file> <regional_IC_file> <global_fields_file>+\n\n";
 		return 1;
 	}
-	globalMeshFile = argv[1];
-	regionalMeshFile = argv[2];
+
+	if (strcmp(argv[1], "--use-reconstruct-winds") == 0) {
+		std::cout << "Using reconstructed winds at cell centers...\n";
+		argv_idx = 2;
+		use_reconstruct_winds = 1;
+	}
+	else {
+		//
+		// Try to catch other uses options besides --use-reconstruct-winds
+		//
+		if (argv[1][0] == '-') {
+			std::cerr << "Unrecognized option: " << argv[1] << std::endl;
+			std::cerr << "\nSupported options are: --use-reconstruct-winds\n";
+			return 1;
+		}
+
+		std::cout << "Using normal component of winds at edges...\n";
+		argv_idx = 1;
+		use_reconstruct_winds = 0;
+	}
+	globalMeshFile = argv[argv_idx++];
+	regionalMeshFile = argv[argv_idx++];
 
 
 	//
 	// Read mesh description fields from regional IC file
 	//
 	start_timer(0);
-	latCellDst = new NCField<float>(regionalMeshFile, "latCell");
+	try {
+		latCellDst = new NCField<float>(regionalMeshFile, "latCell");
+	}
+	catch (int e) {
+		std::cerr << "Error reading latCell field from " << globalMeshFile << std::endl;
+		return 1;
+	}
 	lonCellDst = new NCField<float>(regionalMeshFile, "lonCell");
 	latEdgeDst = new NCField<float>(regionalMeshFile, "latEdge");
 	lonEdgeDst = new NCField<float>(regionalMeshFile, "lonEdge");
@@ -128,7 +157,13 @@ int main(int argc, char **argv)
 	// Read mesh description fields from global IC file
 	//
 	start_timer(0);
-	latCellSrc = new NCField<float>(globalMeshFile, "latCell");
+	try {
+		latCellSrc = new NCField<float>(globalMeshFile, "latCell");
+	}
+	catch (int e) {
+		std::cerr << "Error reading latCell field from " << globalMeshFile << std::endl;
+		return 1;
+	}
 	lonCellSrc = new NCField<float>(globalMeshFile, "lonCell");
 	latEdgeSrc = new NCField<float>(globalMeshFile, "latEdge");
 	lonEdgeSrc = new NCField<float>(globalMeshFile, "lonEdge");
@@ -241,7 +276,7 @@ int main(int argc, char **argv)
 	//
 	// Time-dependent processing for all global input times
 	//
-	for (itime=3; itime<argc; itime++) {
+	for (itime=argv_idx; itime<argc; itime++) {
 		globalFieldFile = argv[itime];
 
 
@@ -249,7 +284,13 @@ int main(int argc, char **argv)
 		// Allocate and read global input fields
 		//
 		start_timer(0);
-		xtime = new NCField<char>(globalFieldFile, "xtime");
+		try {
+			xtime = new NCField<char>(globalFieldFile, "xtime");
+		}
+		catch (int e) {
+			std::cerr << "Error reading xtime field from " << globalFieldFile << std::endl;
+			return 1;
+		}
 		uSrc = new NCField<float>(globalFieldFile, "u");
 		vSrc = new NCField<float>("v", 3, "Time", (size_t)1, "nEdges", uSrc->dimSize("nEdges"), "nVertLevels", uSrc->dimSize("nVertLevels"));
 		theta_mSrc = new NCField<float>(globalFieldFile, "theta_m");
