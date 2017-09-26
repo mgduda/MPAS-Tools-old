@@ -296,11 +296,23 @@ int main(int argc, char **argv)
 			return 1;
 		}
 		if (use_reconstruct_winds) {
-			uSrc = new NCField<float>(globalFieldFile, "uReconstructZonal");
+			try {
+				uSrc = new NCField<float>(globalFieldFile, "uReconstructZonal");
+			}
+			catch (int e) {
+				std::cerr << "Error reading uReconstructZonal field from " << globalFieldFile << std::endl;
+				return 1;
+			}
 			vSrc = new NCField<float>(globalFieldFile, "uReconstructMeridional");
 		}
 		else {
-			uSrc = new NCField<float>(globalFieldFile, "u");
+			try {
+				uSrc = new NCField<float>(globalFieldFile, "u");
+			}
+			catch (int e) {
+				std::cerr << "Error reading u field from " << globalFieldFile << std::endl;
+				return 1;
+			}
 			vSrc = new NCField<float>("v", 3, "Time", (size_t)1, "nEdges", uSrc->dimSize("nEdges"), "nVertLevels", uSrc->dimSize("nVertLevels"));
 		}
 		theta_mSrc = new NCField<float>(globalFieldFile, "theta_m");
