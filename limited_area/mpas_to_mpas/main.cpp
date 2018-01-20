@@ -25,6 +25,8 @@ int main(int argc, char **argv)
 	NCField<float> *lonEdgeDst;
 	NCField<float> *angleEdgeDst;
 	NCField<int> *cellsOnEdgeDst;
+	NCField<int> *bdyMaskCellDst;
+	NCField<int> *bdyMaskEdgeDst;
 	NCField<float> *zgridDst;
 	NCField<float> *zmidDst;
 	NCField<float> *zedgeDst;
@@ -147,6 +149,8 @@ int main(int argc, char **argv)
 	lonEdgeDst = new NCField<float>(regionalMeshFile, "lonEdge");
 	angleEdgeDst = new NCField<float>(regionalMeshFile, "angleEdge");
 	cellsOnEdgeDst = new NCField<int>(regionalMeshFile, "cellsOnEdge");
+	bdyMaskCellDst = new NCField<int>(regionalMeshFile, "bdyMaskCell");
+	bdyMaskEdgeDst = new NCField<int>(regionalMeshFile, "bdyMaskEdge");
 	zgridDst = new NCField<float>(regionalMeshFile, "zgrid");
 	zzDst = new NCField<float>(regionalMeshFile, "zz");
 	stop_timer(0, &secs, &nsecs);
@@ -228,7 +232,7 @@ int main(int argc, char **argv)
 	cellLevelMap->computeWeightsCell(latCellDst->dimSize("nCells"), zgridSrc->dimSize("nVertLevelsP1"), zgridDst->dimSize("nVertLevelsP1"), 3,
                                       nEdgesOnCellSrc->ptr1D(), verticesOnCellSrc->ptr2D(), cellsOnVertexSrc->ptr2D(),
                                       latCellSrc->ptr1D(), lonCellSrc->ptr1D(), latVertexSrc->ptr1D(), lonVertexSrc->ptr1D(), zmidSrc->ptr2D(),
-                                      latCellDst->ptr1D(), lonCellDst->ptr1D(), zgridDst->ptr2D());
+                                      latCellDst->ptr1D(), lonCellDst->ptr1D(), zgridDst->ptr2D(), bdyMaskCellDst->ptr1D());
 	stop_timer(0, &secs, &nsecs);
 	printf("Time to create cellLevelMap : %i.%9.9i\n", secs, nsecs);
 
@@ -241,7 +245,7 @@ int main(int argc, char **argv)
 	cellLayerMap->computeWeightsCell(latCellDst->dimSize("nCells"), zmidSrc->dimSize("nVertLevels"), zmidDst->dimSize("nVertLevels"), 3,
                                       nEdgesOnCellSrc->ptr1D(), verticesOnCellSrc->ptr2D(), cellsOnVertexSrc->ptr2D(),
                                       latCellSrc->ptr1D(), lonCellSrc->ptr1D(), latVertexSrc->ptr1D(), lonVertexSrc->ptr1D(), zmidSrc->ptr2D(),
-                                      latCellDst->ptr1D(), lonCellDst->ptr1D(), zmidDst->ptr2D());
+                                      latCellDst->ptr1D(), lonCellDst->ptr1D(), zmidDst->ptr2D(), bdyMaskCellDst->ptr1D());
 	stop_timer(0, &secs, &nsecs);
 	printf("Time to create cellLayerMap : %i.%9.9i\n", secs, nsecs);
 
@@ -255,7 +259,7 @@ int main(int argc, char **argv)
 	cellToEdgeMap->computeWeightsCell(latEdgeDst->dimSize("nEdges"), zedgeSrc->dimSize("nVertLevels"), zedgeDst->dimSize("nVertLevels"), 3,
                                       nEdgesOnCellSrc->ptr1D(), verticesOnCellSrc->ptr2D(), cellsOnVertexSrc->ptr2D(),
                                       latCellSrc->ptr1D(), lonCellSrc->ptr1D(), latVertexSrc->ptr1D(), lonVertexSrc->ptr1D(), zmidSrc->ptr2D(),
-                                      latEdgeDst->ptr1D(), lonEdgeDst->ptr1D(), zedgeDst->ptr2D());
+                                      latEdgeDst->ptr1D(), lonEdgeDst->ptr1D(), zedgeDst->ptr2D(), bdyMaskCellDst->ptr1D());
 	stop_timer(0, &secs, &nsecs);
 	printf("Time to create cellToEdgeMap : %i.%9.9i\n", secs, nsecs);
 
@@ -271,10 +275,13 @@ int main(int argc, char **argv)
                                             zedgeSrc->dimSize("nVertLevels"), zedgeDst->dimSize("nVertLevels"),
                                             nEdgesOnCellSrc->ptr1D(), cellsOnCellSrc->ptr2D(), edgesOnCellSrc->ptr2D(),
                                             latCellSrc->ptr1D(), lonCellSrc->ptr1D(), latEdgeSrc->ptr1D(), lonEdgeSrc->ptr1D(), zedgeSrc->ptr2D(),
-                                            latCellDst->ptr1D(), lonCellDst->ptr1D(), latEdgeDst->ptr1D(), lonEdgeDst->ptr1D(), zedgeDst->ptr2D());
+                                            latCellDst->ptr1D(), lonCellDst->ptr1D(), latEdgeDst->ptr1D(), lonEdgeDst->ptr1D(), zedgeDst->ptr2D(), bdyMaskEdgeDst->ptr1D());
 		stop_timer(0, &secs, &nsecs);
 		printf("Time to create edgeMap : %i.%9.9i\n", secs, nsecs);
 	}
+
+	delete bdyMaskCellDst;
+	delete bdyMaskEdgeDst;
 
 
 	//

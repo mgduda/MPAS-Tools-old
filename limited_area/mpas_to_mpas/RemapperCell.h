@@ -14,7 +14,8 @@ public:
                                   float *latVertexSrc, float *lonVertexSrc,
                                   float **levelsSrc,
                                   float *latCellDst, float *lonCellDst,
-                                  float **levelsDst);
+                                  float **levelsDst,
+                                  int *maskDst);
 
 private:
 	//
@@ -27,6 +28,7 @@ private:
 	int **HSrcPts2d;
 	float *HSrcWghts;  // Source weights needed for horizontal interpolation to each destination point
 	float **HSrcWghts2d;
+	unsigned char *HDstMask;     // Mask for horizontal destination points
 
 	//
 	// Vertical remapping fields
