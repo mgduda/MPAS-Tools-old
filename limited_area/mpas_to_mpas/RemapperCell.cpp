@@ -72,9 +72,9 @@ void RemapperCell::computeWeightsCell(int nCellsDst, int nVertLevelsSrc, int nVe
 	nHDstPts = nCellsDst;
 	maxHSrcPts = vertexDegree;
 	nHSrcPts = new int[nHDstPts];   // set to all 1 for now...
-	HSrcPts = new int[nHDstPts * maxHSrcPts];
+	HSrcPts = new int[(size_t)nHDstPts * (size_t)maxHSrcPts];
 	HSrcPts2d = allocate_2d<int>(nHDstPts, maxHSrcPts, HSrcPts);
-	HSrcWghts = new float[nHDstPts * maxHSrcPts];
+	HSrcWghts = new float[(size_t)nHDstPts * (size_t)maxHSrcPts];
 	HSrcWghts2d = allocate_2d<float>(nHDstPts, maxHSrcPts, HSrcWghts);
 	HDstMask = new unsigned char[nHDstPts];
 
@@ -107,11 +107,11 @@ void RemapperCell::computeWeightsCell(int nCellsDst, int nVertLevelsSrc, int nVe
 		nVDstPts = nVertLevelsDst;
 		nVSrcLevels = nVertLevelsSrc;
 		maxVSrcPts = 2;
-		nVSrcPts = new int[nHDstPts * nVDstPts];
+		nVSrcPts = new int[(size_t)nHDstPts * (size_t)nVDstPts];
 		nVSrcPts2d = allocate_2d<int>(nHDstPts, nVDstPts, nVSrcPts);
-		VSrcPts = new int[nHDstPts * nVDstPts * maxVSrcPts];
+		VSrcPts = new int[(size_t)nHDstPts * (size_t)nVDstPts * (size_t)maxVSrcPts];
 		VSrcPts3d = allocate_3d<int>(nHDstPts, nVDstPts, maxVSrcPts, VSrcPts);
-		VSrcWghts = new float[nHDstPts * nVDstPts * maxVSrcPts];
+		VSrcWghts = new float[(size_t)nHDstPts * (size_t)nVDstPts * (size_t)maxVSrcPts];
 		VSrcWghts3d = allocate_3d<float>(nHDstPts, nVDstPts, maxVSrcPts, VSrcWghts);
 
 #pragma omp parallel for private(tempLevels)
