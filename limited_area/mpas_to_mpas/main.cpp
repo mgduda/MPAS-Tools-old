@@ -35,8 +35,6 @@ int main(int argc, char **argv)
 	NCField<float> *theta_mDst;
 	NCField<float> *rho_zzDst;
 	NCField<float> *zzDst;
-	NCField<float> *zzEdgeDst;
-	NCField<float> *rho_edgeDst;
 	NCField<float> *wDst;
 	NCField<float> *qxDst[NUM_SCALARS];
 	NCField<char> *xtime;
@@ -45,9 +43,7 @@ int main(int argc, char **argv)
 	float **zgridDstArr;
 	float **zmidDstArr;
 	float **zzDstArr;
-	float **zzEdgeDstArr;
 	float ***rho_zzDstArr;
-	float ***rho_edgeDstArr;
 	float *angleEdgeDstArr;
 
 	char qxLbcName[64];
@@ -197,7 +193,6 @@ int main(int argc, char **argv)
 	zedgeSrc = new NCField<float>("zedge", 2, "nEdges", latEdgeSrc->dimSize("nEdges"), "nVertLevels", zgridSrc->dimSize("nVertLevelsP1")-1);
 	zmidDst = new NCField<float>("zmid", 2, "nCells", zgridDst->dimSize("nCells"), "nVertLevels", zgridDst->dimSize("nVertLevelsP1")-1);
 	zedgeDst = new NCField<float>("zedge", 2, "nEdges", latEdgeDst->dimSize("nEdges"), "nVertLevels", zgridDst->dimSize("nVertLevelsP1")-1);
-	zzEdgeDst = new NCField<float>("zzedge", 2, "nEdges", latEdgeDst->dimSize("nEdges"), "nVertLevels", zedgeDst->dimSize("nVertLevels"));
 
 
 	//
@@ -251,17 +246,18 @@ int main(int argc, char **argv)
 
 
 	//
-	// Compute weights for remapping cell-based fields to edges (used for interpolating rho to rho_edge, or
-	//    uReconstruct{Zonal,Meridional} to u)
+	// Compute weights for remapping cell-based fields to edges (used for interpolating uReconstruct{Zonal,Meridional} to u)
 	//
-	start_timer(0);
-	cellToEdgeMap = new RemapperCell();
-	cellToEdgeMap->computeWeightsCell(latEdgeDst->dimSize("nEdges"), zedgeSrc->dimSize("nVertLevels"), zedgeDst->dimSize("nVertLevels"), 3,
-                                      nEdgesOnCellSrc->ptr1D(), verticesOnCellSrc->ptr2D(), cellsOnVertexSrc->ptr2D(),
-                                      latCellSrc->ptr1D(), lonCellSrc->ptr1D(), latVertexSrc->ptr1D(), lonVertexSrc->ptr1D(), zmidSrc->ptr2D(),
-                                      latEdgeDst->ptr1D(), lonEdgeDst->ptr1D(), zedgeDst->ptr2D(), bdyMaskCellDst->ptr1D());
-	stop_timer(0, &secs, &nsecs);
-	printf("Time to create cellToEdgeMap : %i.%9.9i\n", secs, nsecs);
+	if (use_reconstruct_winds) {
+		start_timer(0);
+		cellToEdgeMap = new RemapperCell();
+		cellToEdgeMap->computeWeightsCell(latEdgeDst->dimSize("nEdges"), zedgeSrc->dimSize("nVertLevels"), zedgeDst->dimSize("nVertLevels"), 3,
+                                                  nEdgesOnCellSrc->ptr1D(), verticesOnCellSrc->ptr2D(), cellsOnVertexSrc->ptr2D(),
+                                                  latCellSrc->ptr1D(), lonCellSrc->ptr1D(), latVertexSrc->ptr1D(), lonVertexSrc->ptr1D(), zmidSrc->ptr2D(),
+                                                  latEdgeDst->ptr1D(), lonEdgeDst->ptr1D(), zedgeDst->ptr2D(), bdyMaskCellDst->ptr1D());
+		stop_timer(0, &secs, &nsecs);
+		printf("Time to create cellToEdgeMap : %i.%9.9i\n", secs, nsecs);
+	}
 
 
 	//
@@ -336,7 +332,6 @@ int main(int argc, char **argv)
 		vDst = new NCField<float>("lbc_v", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
 		theta_mDst = new NCField<float>("lbc_theta_m", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
 		rho_zzDst = new NCField<float>("lbc_rho_zz", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
-		rho_edgeDst = new NCField<float>("lbc_rho_edge", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
 		wDst = new NCField<float>("lbc_w", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevelsP1", zgridDst->dimSize("nVertLevelsP1"));
 
 
@@ -393,7 +388,6 @@ int main(int argc, char **argv)
 		stat = uDst->defineInFile(ncid);
 		stat = theta_mDst->defineInFile(ncid);
 		stat = rho_zzDst->defineInFile(ncid);
-		stat = rho_edgeDst->defineInFile(ncid);
 		stat = wDst->defineInFile(ncid);
 
 		//
@@ -440,7 +434,6 @@ int main(int argc, char **argv)
 		//
 		theta_mDst->remapFrom(*theta_mSrc, *cellLayerMap);
 		rho_zzDst->remapFrom(*rho_zzSrc, *cellLayerMap);
-		rho_edgeDst->remapFrom(*rho_zzSrc, *cellToEdgeMap);
 		wDst->remapFrom(*wSrc, *cellLevelMap);
 		stop_timer(0, &secs, &nsecs);
 		printf("Time to remap fields : %i.%9.9i\n", secs, nsecs);
@@ -455,17 +448,6 @@ int main(int argc, char **argv)
 
 
 		//
-		// Couple rho_edge
-		//
-		zzEdgeDstArr = zzEdgeDst->ptr2D();
-		rho_edgeDstArr = rho_edgeDst->ptr3D();
-		avg_cell_to_edge(zzEdgeDst->dimSize("nEdges"), zzEdgeDst->dimSize("nVertLevels"), cellsOnEdgeDst->ptr2D(), zzDstArr, zzEdgeDstArr);
-		couple(zzEdgeDst->dimSize("nVertLevels"), zzEdgeDst->dimSize("nEdges"), rho_edgeDstArr[0], zzEdgeDstArr);
-		stop_timer(0, &secs, &nsecs);
-		printf("Time to couple rho_zz and rho_edge : %i.%9.9i\n", secs, nsecs);
-
-
-		//
 		// Write interpolated regional fields to output file
 		//
 		start_timer(0);
@@ -473,7 +455,6 @@ int main(int argc, char **argv)
 		stat = uDst->writeToFile(ncid);
 		stat = theta_mDst->writeToFile(ncid);
 		stat = rho_zzDst->writeToFile(ncid);
-		stat = rho_edgeDst->writeToFile(ncid);
 		stat = wDst->writeToFile(ncid);
 		stop_timer(0, &secs, &nsecs);
 
@@ -500,7 +481,6 @@ int main(int argc, char **argv)
 		delete vDst;
 		delete theta_mDst;
 		delete rho_zzDst;
-		delete rho_edgeDst;
 		delete wDst;
 	}
 	
@@ -535,13 +515,14 @@ int main(int argc, char **argv)
 	delete zmidSrc;
 	delete zzSrc;
 	delete zzDst;
-	delete zzEdgeDst;
 	delete cellLayerMap;
 	delete cellLevelMap;
 	if (!use_reconstruct_winds) {
 		delete edgeMap;
 	}
-	delete cellToEdgeMap;
+	if (use_reconstruct_winds) {
+		delete cellToEdgeMap;
+	}
 
 	return 0;
 }
