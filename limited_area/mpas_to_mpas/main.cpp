@@ -33,8 +33,7 @@ int main(int argc, char **argv)
 	NCField<float> *uDst;
 	NCField<float> *vDst;
 	NCField<float> *thetaDst;
-	NCField<float> *rho_zzDst;
-	NCField<float> *zzDst;
+	NCField<float> *rhoDst;
 	NCField<float> *wDst;
 	NCField<float> *qxDst[NUM_SCALARS];
 	NCField<char> *xtime;
@@ -42,8 +41,7 @@ int main(int argc, char **argv)
 	float ***vDstArr;
 	float **zgridDstArr;
 	float **zmidDstArr;
-	float **zzDstArr;
-	float ***rho_zzDstArr;
+	float ***rhoDstArr;
 	float *angleEdgeDstArr;
 
 	char qxLbcName[64];
@@ -77,16 +75,14 @@ int main(int argc, char **argv)
 	NCField<float> *uSrc;
 	NCField<float> *vSrc;
 	NCField<float> *thetaSrc;
-	NCField<float> *rho_zzSrc;
-	NCField<float> *zzSrc;
+	NCField<float> *rhoSrc;
 	NCField<float> *wSrc;
 	NCField<float> *qxSrc[NUM_SCALARS];
 	float ***uSrcArr;
 	float ***vSrcArr;
 	float **zgridSrcArr;
 	float **zmidSrcArr;
-	float **zzSrcArr;
-	float ***rho_zzSrcArr;
+	float ***rhoSrcArr;
 	int *nEdgesOnEdgeSrcArr;
 	int **edgesOnEdgeSrcArr;
 	float **weightsOnEdgeSrcArr;
@@ -148,7 +144,6 @@ int main(int argc, char **argv)
 	bdyMaskCellDst = new NCField<int>(regionalMeshFile, "bdyMaskCell");
 	bdyMaskEdgeDst = new NCField<int>(regionalMeshFile, "bdyMaskEdge");
 	zgridDst = new NCField<float>(regionalMeshFile, "zgrid");
-	zzDst = new NCField<float>(regionalMeshFile, "zz");
 	stop_timer(0, &secs, &nsecs);
 	printf("Time to read mesh fields from %s : %i.%9.9i\n", regionalMeshFile, secs, nsecs);
 
@@ -180,7 +175,6 @@ int main(int argc, char **argv)
 	cellsOnEdgeSrc = new NCField<int>(globalMeshFile, "cellsOnEdge");
 	edgesOnCellSrc = new NCField<int>(globalMeshFile, "edgesOnCell");
 	zgridSrc = new NCField<float>(globalMeshFile, "zgrid");
-	zzSrc = new NCField<float>(globalMeshFile, "zz");
 	stop_timer(0, &secs, &nsecs);
 	printf("Time to read mesh fields from %s : %i.%9.9i\n", globalMeshFile, secs, nsecs);
 
@@ -319,7 +313,7 @@ int main(int argc, char **argv)
 			vSrc = new NCField<float>("v", 3, "Time", (size_t)1, "nEdges", uSrc->dimSize("nEdges"), "nVertLevels", uSrc->dimSize("nVertLevels"));
 		}
 		thetaSrc = new NCField<float>(globalFieldFile, "theta");
-		rho_zzSrc = new NCField<float>(globalFieldFile, "rho_zz");
+		rhoSrc = new NCField<float>(globalFieldFile, "rho");
 		wSrc = new NCField<float>(globalFieldFile, "w");
 		stop_timer(0, &secs, &nsecs);
 		printf("Time to read time-dependent fields from %s : %i.%9.9i\n", globalFieldFile, secs, nsecs);
@@ -331,7 +325,7 @@ int main(int argc, char **argv)
 		uDst = new NCField<float>("lbc_u", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
 		vDst = new NCField<float>("lbc_v", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
 		thetaDst = new NCField<float>("lbc_theta", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
-		rho_zzDst = new NCField<float>("lbc_rho_zz", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+		rhoDst = new NCField<float>("lbc_rho", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
 		wDst = new NCField<float>("lbc_w", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevelsP1", zgridDst->dimSize("nVertLevelsP1"));
 
 
@@ -355,20 +349,8 @@ int main(int argc, char **argv)
 			printf("Time to reconstruct v and rotate winds : %i.%9.9i\n", secs, nsecs);
 		}
 
-		zzSrcArr = zzSrc->ptr2D();
-		zzDstArr = zzDst->ptr2D();
-
-		rho_zzSrcArr = rho_zzSrc->ptr3D();
-		rho_zzDstArr = rho_zzDst->ptr3D();
-
-
-		//
-		// Uncouple global rho_zz field
-		//
-		start_timer(0);
-		uncouple(zzSrc->dimSize("nVertLevels"), zzSrc->dimSize("nCells"), rho_zzSrcArr[0], zzSrcArr);
-		stop_timer(0, &secs, &nsecs);
-		printf("Time to uncouple rho_zz : %i.%9.9i\n", secs, nsecs);
+		rhoSrcArr = rhoSrc->ptr3D();
+		rhoDstArr = rhoDst->ptr3D();
 
 
 		//
@@ -387,7 +369,7 @@ int main(int argc, char **argv)
 		stat = xtime->defineInFile(ncid);
 		stat = uDst->defineInFile(ncid);
 		stat = thetaDst->defineInFile(ncid);
-		stat = rho_zzDst->defineInFile(ncid);
+		stat = rhoDst->defineInFile(ncid);
 		stat = wDst->defineInFile(ncid);
 
 		//
@@ -433,18 +415,12 @@ int main(int argc, char **argv)
 		// Interpolate scalar fields
 		//
 		thetaDst->remapFrom(*thetaSrc, *cellLayerMap);
-		rho_zzDst->remapFrom(*rho_zzSrc, *cellLayerMap);
+		rhoDst->remapFrom(*rhoSrc, *cellLayerMap);
 		wDst->remapFrom(*wSrc, *cellLevelMap);
 		stop_timer(0, &secs, &nsecs);
 		printf("Time to remap fields : %i.%9.9i\n", secs, nsecs);
 
 		start_timer(0);
-
-
-		//
-		// Couple rho_zz
-		//
-		couple(zzDst->dimSize("nVertLevels"), zzDst->dimSize("nCells"), rho_zzDstArr[0], zzDstArr);
 
 
 		//
@@ -454,7 +430,7 @@ int main(int argc, char **argv)
 		stat = xtime->writeToFile(ncid);
 		stat = uDst->writeToFile(ncid);
 		stat = thetaDst->writeToFile(ncid);
-		stat = rho_zzDst->writeToFile(ncid);
+		stat = rhoDst->writeToFile(ncid);
 		stat = wDst->writeToFile(ncid);
 		stop_timer(0, &secs, &nsecs);
 
@@ -474,13 +450,13 @@ int main(int argc, char **argv)
 		delete uSrc;
 		delete vSrc;
 		delete thetaSrc;
-		delete rho_zzSrc;
+		delete rhoSrc;
 		delete wSrc;
 
 		delete uDst;
 		delete vDst;
 		delete thetaDst;
-		delete rho_zzDst;
+		delete rhoDst;
 		delete wDst;
 	}
 	
@@ -513,8 +489,6 @@ int main(int argc, char **argv)
 	delete zgridSrc;
 	delete zedgeSrc;
 	delete zmidSrc;
-	delete zzSrc;
-	delete zzDst;
 	delete cellLayerMap;
 	delete cellLevelMap;
 	if (!use_reconstruct_winds) {
