@@ -32,7 +32,7 @@ int main(int argc, char **argv)
 	NCField<float> *zedgeDst;
 	NCField<float> *uDst;
 	NCField<float> *vDst;
-	NCField<float> *theta_mDst;
+	NCField<float> *thetaDst;
 	NCField<float> *rho_zzDst;
 	NCField<float> *zzDst;
 	NCField<float> *wDst;
@@ -76,7 +76,7 @@ int main(int argc, char **argv)
 	NCField<float> *zedgeSrc;
 	NCField<float> *uSrc;
 	NCField<float> *vSrc;
-	NCField<float> *theta_mSrc;
+	NCField<float> *thetaSrc;
 	NCField<float> *rho_zzSrc;
 	NCField<float> *zzSrc;
 	NCField<float> *wSrc;
@@ -318,7 +318,7 @@ int main(int argc, char **argv)
 			}
 			vSrc = new NCField<float>("v", 3, "Time", (size_t)1, "nEdges", uSrc->dimSize("nEdges"), "nVertLevels", uSrc->dimSize("nVertLevels"));
 		}
-		theta_mSrc = new NCField<float>(globalFieldFile, "theta_m");
+		thetaSrc = new NCField<float>(globalFieldFile, "theta");
 		rho_zzSrc = new NCField<float>(globalFieldFile, "rho_zz");
 		wSrc = new NCField<float>(globalFieldFile, "w");
 		stop_timer(0, &secs, &nsecs);
@@ -330,7 +330,7 @@ int main(int argc, char **argv)
 		//
 		uDst = new NCField<float>("lbc_u", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
 		vDst = new NCField<float>("lbc_v", 3, "Time", (size_t)1, "nEdges", angleEdgeDst->dimSize("nEdges"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
-		theta_mDst = new NCField<float>("lbc_theta_m", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
+		thetaDst = new NCField<float>("lbc_theta", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
 		rho_zzDst = new NCField<float>("lbc_rho_zz", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevels", zmidDst->dimSize("nVertLevels"));
 		wDst = new NCField<float>("lbc_w", 3, "Time", (size_t)1, "nCells", zmidDst->dimSize("nCells"), "nVertLevelsP1", zgridDst->dimSize("nVertLevelsP1"));
 
@@ -386,7 +386,7 @@ int main(int argc, char **argv)
 
 		stat = xtime->defineInFile(ncid);
 		stat = uDst->defineInFile(ncid);
-		stat = theta_mDst->defineInFile(ncid);
+		stat = thetaDst->defineInFile(ncid);
 		stat = rho_zzDst->defineInFile(ncid);
 		stat = wDst->defineInFile(ncid);
 
@@ -432,7 +432,7 @@ int main(int argc, char **argv)
 		//
 		// Interpolate scalar fields
 		//
-		theta_mDst->remapFrom(*theta_mSrc, *cellLayerMap);
+		thetaDst->remapFrom(*thetaSrc, *cellLayerMap);
 		rho_zzDst->remapFrom(*rho_zzSrc, *cellLayerMap);
 		wDst->remapFrom(*wSrc, *cellLevelMap);
 		stop_timer(0, &secs, &nsecs);
@@ -453,7 +453,7 @@ int main(int argc, char **argv)
 		start_timer(0);
 		stat = xtime->writeToFile(ncid);
 		stat = uDst->writeToFile(ncid);
-		stat = theta_mDst->writeToFile(ncid);
+		stat = thetaDst->writeToFile(ncid);
 		stat = rho_zzDst->writeToFile(ncid);
 		stat = wDst->writeToFile(ncid);
 		stop_timer(0, &secs, &nsecs);
@@ -473,13 +473,13 @@ int main(int argc, char **argv)
 		delete xtime;
 		delete uSrc;
 		delete vSrc;
-		delete theta_mSrc;
+		delete thetaSrc;
 		delete rho_zzSrc;
 		delete wSrc;
 
 		delete uDst;
 		delete vDst;
-		delete theta_mDst;
+		delete thetaDst;
 		delete rho_zzDst;
 		delete wDst;
 	}
